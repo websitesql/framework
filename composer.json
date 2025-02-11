@@ -1,5 +1,5 @@
 {
-    "name": "alan-tiller/framework",
+    "name": "alantiller/framework",
     "description": "A lightweight PHP framework for creating quick, simple and secure RESTful APIs.",
     "type": "library",
     "license": "MIT",
