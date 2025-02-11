@@ -1,7 +1,7 @@
 {
     "name": "alantiller/framework",
     "description": "A lightweight PHP framework for creating quick, simple and secure RESTful APIs.",
-    "type": "library",
+    "type": "project",
     "license": "MIT",
     "autoload": {
         "psr-4": {
