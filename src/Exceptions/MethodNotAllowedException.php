@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace AlanTiller\Framework\Exceptions;
+namespace WebsiteSQL\Framework\Exceptions;
 
 use Exception;
 use Throwable;

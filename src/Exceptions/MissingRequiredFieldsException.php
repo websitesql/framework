@@ -2,21 +2,20 @@
 
 namespace WebsiteSQL\Framework\Exceptions;
 
-use Exception;
 use Throwable;
 
-class NotFoundException extends GeneralException
+class MissingRequiredFieldsException extends GeneralException
 {
     /**
-     * NotFoundException constructor.
+     * MissingRequiredFieldsException constructor.
      *
      * @param string         $message  Optional custom message, defaulting to a standard message.
-     * @param int            $code     Optional HTTP status code, defaulting to 404.
+     * @param int            $code     Optional HTTP status code, defaulting to 400.
      * @param Throwable|null $previous Previous throwable, if any.
      */
     public function __construct(
-        string $message = 'The requested resource could not be found.',
-        int $code = 404,
+        string $message = 'Missing required fields, please check your request and try again.',
+        int $code = 400,
         Throwable $previous = null
     ) {
         parent::__construct($message, $code, $previous);

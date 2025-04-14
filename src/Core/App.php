@@ -1,209 +1,119 @@
 <?php declare(strict_types=1);
 
-namespace AlanTiller\Framework\Core;
+namespace WebsiteSQL\Framework\Core;
 
-use AlanTiller\Framework\Interfaces\RouterInterface;
-use AlanTiller\Framework\Interfaces\MailInterface;
-use AlanTiller\Framework\Interfaces\AuthenticationInterface;
-use AlanTiller\Framework\Interfaces\UserInterface;
-use AlanTiller\Framework\Interfaces\UtilitiesInterface;
-use AlanTiller\Framework\Exceptions\ConfigurationException;
-use AlanTiller\Framework\Exceptions\DatabaseException;
-use Dotenv\Dotenv;
-use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
-use AlanTiller\Framework\Core\Config;
-use AlanTiller\Framework\Providers\LeagueRouteRouterProvider;
-use AlanTiller\Framework\Providers\MailProvider;
-use AlanTiller\Framework\Strategy\ApiStrategy;
+use WebsiteSQL\Framework\Kernel;
+use WebsiteSQL\Framework\Strategy\ApiStrategy;
+use WebsiteSQL\Framework\Exceptions\GeneralException;
+use Laminas\HttpHandlerRunner\Emitter\SapiEmitter;
+use Laminas\Diactoros\ServerRequestFactory;
 use Laminas\Diactoros\ResponseFactory;
-use AlanTiller\Framework\Providers\AuthenticationProvider;
-use AlanTiller\Framework\Providers\UserProvider;
-use AlanTiller\Framework\Providers\UtilitiesProvider;
-use Medoo\Medoo;
+use League\Container\Container;
+use League\Route\Router;
 
-class App
+class App extends Kernel
 {
-    private bool $initialised = false;
-    private string $basePath;
-    private Config $config;
-    private ?Medoo $database = null;
-    private ?RouterInterface $router = null;
-    private ?MailInterface $mail = null;
-    private ?AuthenticationInterface $auth = null;
-    private ?UserInterface $user = null;
-    private ?UtilitiesInterface $utilities = null;
-    private ?LoggerInterface $logger = null;
 
-    public function __construct(string $basePath = null, LoggerInterface $logger = null)
+    /**
+     * This object holds the Router class
+     * 
+     * @var Router
+     */
+    private Router $router;
+
+	/**
+	 * This object holds the Container class
+	 * 
+	 * @var Container
+	 */
+	private Container $container;
+
+    /**
+     * Constructor
+     */
+    public function __construct()
     {
-        $this->basePath = $basePath ?? realpath(__DIR__ . '/../..');
-        $this->logger = $logger ?? new NullLogger(); // Use a NullLogger if none provided
+		parent::__construct();
+
+		// Create the router
+		$this->router = new Router();
+
+		// Create the container
+		$this->container = new Container();
+
+        // Register this instance in the container
+        $this->container->add(App::class, $this);
     }
 
-    public function init(array $config = []): void
-    {
-        if ($this->initialised) {
-            throw new \Exception('Application already initialised');
-        }
-
-        $this->initConfig($config);
-        $this->initEnvironment();
-        $this->initDatabase();
-        $this->initSecurity();
-        $this->initTimezone();
-        $this->initialiseRouter();
-        $this->initialiseMail();
-        $this->initialiseAuthentication();
-        $this->initialiseUtilities();
-
-        $this->initialised = true;
-    }
-
-    private function initConfig(array $config): void
-    {
-        $this->config = new Config($this->basePath . '/config', $config);
-    }
-
-    private function initEnvironment(): void
-    {
-        $dotenv = Dotenv::createArrayBacked($this->basePath);
-        $dotenv->load();
-
-        $this->config->set('env', $_ENV);
-    }
-
-    private function initDatabase(): void
-    {
-        $dbConfig = $this->config->get('database');
-
-        if (empty($dbConfig)) {
-            throw new ConfigurationException('Database configuration not found.');
-        }
-
-        try {
-            $this->database = new Medoo($dbConfig);
-        } catch (\Exception $e) {
-            throw new DatabaseException('Database connection error: ' . $e->getMessage());
-        }
-    }
-
-    private function initSecurity(): void
-    {
-        header_remove('X-Powered-By');
-    }
-
-    private function initTimezone(): void
-    {
-        $timezone = $this->config->get('app.timezone', 'UTC');
-        date_default_timezone_set($timezone);
-    }
-
-    public function initialiseRouter(RouterInterface $router = null): void
-    {
-        $corsConfig = $this->config->get('cors', []);
-        $debug = $this->config->get('app.debug', false);
-        $responseFactory = new ResponseFactory();
-
-        $apiStrategy = new ApiStrategy($responseFactory, 0, $debug);
-        $apiStrategy->corsConfig($corsConfig);
-
-        if ($router === null) {
-            $router = new LeagueRouteRouterProvider($apiStrategy);
-        }
-
-        $this->router = $router;
-    }
-
-    public function initialiseMail(MailInterface $mail = null): void
-    {
-        $mailConfig = $this->config->get('mail');
-
-        if ($mail === null) {
-            $mail = new MailProvider($mailConfig, $this->logger);
-        }
-
-        $this->mail = $mail;
-    }
-
-    public function initialiseAuthentication(): void
-    {
-        $userProvider = $this->getUserProvider();
-        $auth = new AuthenticationProvider($userProvider, $this->config, $this->logger);
-        $this->auth = $auth;
-    }
-
-    public function initialiseUtilities(): void
-    {
-        $this->utilities = new UtilitiesProvider();
-    }
-
+    /*
+     * This method serves the application
+     * 
+     * @return void
+     */
     public function serve(): void
     {
-        if (!$this->initialised) {
-            $this->init();
-        }
-
+        // Hide default PHP errors
         error_reporting(0);
         ini_set('display_errors', '0');
 
-        if (!$this->router) {
-            throw new \Exception('Router not initialised');
+		// Remove X-Powered-By header
+        header_remove('X-Powered-By');
+
+        // Create the request object
+        $request = ServerRequestFactory::fromGlobals(
+            $_SERVER, $_GET, $_POST, $_COOKIE, $_FILES
+        );
+
+        // Create the response factory
+        $responseFactory = new ResponseFactory();
+
+        // Create the API strategy
+        $apiStrategy = new ApiStrategy(
+			$responseFactory,
+			$this->getConfig()->get('app.env') === 'development' ? JSON_PRETTY_PRINT : 0,
+			$this->getConfig()->get('app.debug')
+		);
+
+		// Set cors config if enabled
+        if ($this->getConfig()->get('cors.enabled')) {
+            $apiStrategy->corsConfig([
+                'allowedOrigins' => array_map('trim', explode(',', $this->getConfig()->get('cors.allow_origin'))),
+                'allowedMethods' => array_map('trim', explode(',', $this->getConfig()->get('cors.allow_methods'))),
+                'exposedHeaders' => array_map('trim', explode(',', $this->getConfig()->get('cors.expose_headers'))),
+                'maxAge' => $this->getConfig()->get('cors.max_age'),
+                'allowCredentials' => $this->getConfig()->get('cors.allow_credentials'),
+            ]);
         }
 
-        $this->router->dispatch();
+		// Add the request to the container
+        $apiStrategy->setContainer($this->container);
+
+        // Set the API strategy
+        $this->router->setStrategy($apiStrategy);
+
+        // Import the routes file routes/api.php
+		$routesFile = $this->getBasePath() . '/routes/api.php';
+		if (file_exists($routesFile)) {
+			require_once $routesFile;
+		} else {
+			throw new GeneralException("Routes file not found: $routesFile");
+		}
+
+        // Dispatch the request
+        $response = $this->router->dispatch($request);
+
+        // Send the response with SapiEmitter
+        (new SapiEmitter())->emit($response);
     }
 
-    public function getConfig(): Config
+    /*
+     * This method returns the router object
+     * 
+     * @return Router
+     */
+    public function getRouter(): Router
     {
-        return $this->config;
-    }
-
-    public function getDatabase(): ?Medoo
-    {
-        return $this->database;
-    }
-
-    public function getRouter(): ?RouterInterface
-    {
+        // Return the router object
         return $this->router;
-    }
-
-    public function getMail(): ?MailInterface
-    {
-        return $this->mail;
-    }
-
-    public function getAuth(): ?AuthenticationInterface
-    {
-        return $this->auth;
-    }
-
-    public function getUser(): ?UserInterface
-    {
-        return $this->user;
-    }
-
-    public function getUtilities(): ?UtilitiesInterface
-    {
-        return $this->utilities;
-    }
-
-    public function getLogger(): ?LoggerInterface
-    {
-        return $this->logger;
-    }
-
-    public function getBasePath(): string
-    {
-        return $this->basePath;
-    }
-
-    private function getUserProvider(): UserInterface
-    {
-        if ($this->user === null) {
-            $this->user = new UserProvider($this->getDatabase(), $this->config, $this->logger);
-        }
-        return $this->user;
     }
 }

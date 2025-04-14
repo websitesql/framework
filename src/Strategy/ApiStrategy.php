@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace AlanTiller\Framework\Strategy;
+namespace WebsiteSQL\Framework\Strategy;
 
 use JsonSerializable;
 use League\Route\Route;
@@ -9,7 +9,7 @@ use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequest
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
 use League\Route\Strategy\AbstractStrategy;
 use League\Route\Strategy\OptionsHandlerInterface;
-use AlanTiller\Framework\Exceptions\{MethodNotAllowedException, NotFoundException, GeneralException};
+use WebsiteSQL\Framework\Exceptions\{MethodNotAllowedException, NotFoundException, GeneralException};
 use Error;
 use Throwable;
 
@@ -260,7 +260,7 @@ class ApiStrategy extends AbstractStrategy implements ContainerAwareInterface, O
     public function createErrorResponse(ResponseInterface $response, Throwable $exception): ResponseInterface {
         if ($this->debug) {
             // In debug mode, wrap non-API exceptions in GeneralException
-            if (!$exception instanceof \AlanTiller\Framework\Exceptions\GeneralException) {
+            if (!$exception instanceof \WebsiteSQL\Framework\Exceptions\GeneralException) {
                 $httpCode = $this->validateHttpCode($exception->getCode());
                 $exception = new GeneralException(
                     $exception->getMessage(),
@@ -290,12 +290,12 @@ class ApiStrategy extends AbstractStrategy implements ContainerAwareInterface, O
             ];
         } else {
             // Production mode - validate and sanitize the error response
-            if ($exception instanceof \AlanTiller\Framework\Exceptions\GeneralException) {
+            if ($exception instanceof \WebsiteSQL\Framework\Exceptions\GeneralException) {
                 $message = $exception->getMessage();
                 $exceptionClass = get_class($exception);
                 $httpCode = $this->validateHttpCode($exception->getCode());
             } else {
-                // For non-Brou exceptions, throw a generic error
+                // For non-PoweredApps exceptions, throw a generic error
                 $exception = new GeneralException();
                 $message = $exception->getMessage();
                 $exceptionClass = get_class($exception);

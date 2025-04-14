@@ -1,96 +1,129 @@
 <?php declare(strict_types=1);
 
-namespace AlanTiller\Framework\Providers;
+namespace WebsiteSQL\Framework\Providers;
 
-use AlanTiller\Framework\Interfaces\UserInterface;
-use AlanTiller\Framework\Core\Config;
-use Psr\Log\LoggerInterface;
-use Medoo\Medoo;
+use WebsiteSQL\Framework\Exceptions\UserAlreadyExistsException;
+use WebsiteSQL\Framework\App;
 
-class UserProvider implements UserInterface
+class UserProvider
 {
-    private Medoo $database;
-    private Config $config;
-    private LoggerInterface $logger;
+    /*
+     * This object holds the Medoo database connection
+     * 
+     * @var Medoo
+     */
+    private App $app;
 
-    public function __construct(Medoo $database, Config $config, LoggerInterface $logger)
+    /*
+     * Constructor
+     * 
+     * @param string $realm
+     * @param Medoo $database
+     */
+    public function __construct(App $app)
     {
-        $this->database = $database;
-        $this->config = $config;
-        $this->logger = $logger;
+        $this->app = $app;
     }
 
-    public function find(int $id): ?object
+    /*
+     * This method registers a new user
+     * 
+     * @param string $firstname
+     * @param string $lastname
+     * @param string $email
+     * @param string $password
+     * @param bool $approved
+     * @param bool $email_verified
+     * @return bool
+     */
+    public function register(string $firstname, string $lastname, string $email, string $password, bool $approved = false, bool $email_verified = false): bool
     {
-        $user = $this->database->get('users', '*', ['id' => $id]);
-
-        if ($user) {
-            return (object) $user;
+        // Check if the email is already in use
+        $UserQuery = $this->app->getDatabase()->get($this->app->getStrings()->getTableUsers(), '*', ['email' => $email]);
+        if ($UserQuery)
+        {
+            throw new UserAlreadyExistsException();
         }
 
-        return null;
-    }
+        // Hash the password
+        $password = password_hash($password, PASSWORD_ARGON2ID);
 
-    public function findByCredentials(array $credentials): ?object
-    {
-        $usernameField = $this->config->get('auth.username_field', 'email');
-        $passwordField = $this->config->get('auth.password_field', 'password');
-
-        $user = $this->database->get('users', '*', [
-            $usernameField => $credentials['username']
+        // Insert the user into the database
+        $this->app->getDatabase()->insert($this->app->getStrings()->getTableUsers(), [
+            'uuid' => $this->app->getUtilities()->generateUuid(4),
+            'firstname' => $firstname,
+            'lastname' => $lastname,
+            'email' => $email,
+            'password' => $password,
+            'approved' => $approved,
+            'locked' => 0,
+            'email_verified' => $email_verified,
+            'created_at' => $this->app->getUtilities()->getDateTime(),
         ]);
 
-        if ($user && password_verify($credentials['password'], $user[$passwordField])) {
-            return (object) $user;
-        }
+        // Get the user ID
+        $id = $this->app->getDatabase()->id();
 
-        return null;
+        // Send the confirmation email
+        $this->sendConfirmationEmail((int) $id);
+
+        return true;
     }
 
-    public function create(array $data): ?object
+    /*
+     * This method gets a user by their ID
+     * 
+     * @param int $id
+     * @return array
+     */
+    public function getUserById(int $id): array
     {
-        $passwordField = $this->config->get('auth.password_field', 'password');
-        $data[$passwordField] = password_hash($data[$passwordField], PASSWORD_DEFAULT);
-
-        $id = $this->database->insert('users', $data);
-
-        if ($id) {
-            $this->logger->info('User created with ID: ' . $id);
-            return $this->find($id);
-        }
-
-        $this->logger->error('Failed to create user.');
-        return null;
+        return $this->app->getDatabase()->get($this->app->getStrings()->getTableUsers(), '*', ['id' => $id]);
     }
 
-    public function update(int $id, array $data): bool
+    /*
+     * This method gets all users
+     * 
+     * @return array
+     */
+    public function getUsers(): array
     {
-        $passwordField = $this->config->get('auth.password_field', 'password');
-        if (isset($data[$passwordField])) {
-            $data[$passwordField] = password_hash($data[$passwordField], PASSWORD_DEFAULT);
-        }
-
-        $result = $this->database->update('users', $data, ['id' => $id]);
-
-        if ($result->rowCount() > 0) {
-            $this->logger->info('User updated with ID: ' . $id);
-            return true;
-        }
-
-        $this->logger->warning('Failed to update user with ID: ' . $id);
-        return false;
+        return $this->app->getDatabase()->select($this->app->getStrings()->getTableUsers(), '*');
     }
 
-    public function delete(int $id): bool
+    /*
+     * This method sends a user confirmation email
+     * 
+     * @param int $id
+     * @return bool
+     */
+    public function sendConfirmationEmail(int $id): bool
     {
-        $result = $this->database->delete('users', ['id' => $id]);
+        $user = $this->getUserById($id);
 
-        if ($result->rowCount() > 0) {
-            $this->logger->info('User deleted with ID: ' . $id);
-            return true;
+        if (!$user) {
+            return false;
         }
 
-        $this->logger->warning('Failed to delete user with ID: ' . $id);
-        return false;
+        // Generate a token for the email confirmation link
+        $token = $this->app->getUtilities()->randomString(100);
+        $expiry = new \DateTime('+1 day');
+
+        // Update the user with the token and expiry
+        $this->app->getDatabase()->update($this->app->getStrings()->getTableUsers(), [
+            'email_verify_code' => $token,
+            'email_verify_expiry' => $expiry->format('Y-m-d H:i:s')
+        ], ['id' => $id]);
+
+        // Generate the email content
+        $content = $this->app->getRenderer()->render('email::email-confirmation', [
+            'firstname' => $user['firstname'],
+            'url' => $this->app->getRouter()->getRoute('app.confirm-email', ['token' => $token])
+        ]);
+
+        // Send the email
+        $this->app->getMail()->send($user['email'], 'Verify your email address', $content);
+
+        return true;
     }
 }
