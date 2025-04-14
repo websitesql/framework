@@ -57,14 +57,14 @@ class Kernel
 			'database' => $this->config->get('database.name'),
 			'username' => $this->config->get('database.username'),
 			'password' => $this->config->get('database.password')
-		], '../migrations');
+		], $this->config->get('database.migrations_path'));
 
 		// Load the mail provider
 		$this->mailer = new Mailer([
 			'driver' => $this->config->get('mail.driver'), // Mail driver (smtp, sendmail, mailgun, etc.)
 			'from' => $this->config->get('mail.from'), // Sender email address
 			'from_name' => $this->config->get('app.name'), // Sender name
-			'template_path' => $this->config->get('path.mailer'), // Path to email templates
+			'template_path' => $this->config->get('mail.template_path'), // Path to email templates
 			'smtp_host' => $this->config->get('mail.smtp_host'), // SMTP server address
 			'smtp_port' => $this->config->get('mail.smtp_port'), // SMTP server port
 			'smtp_username' => $this->config->get('mail.smtp_user'), // SMTP username
