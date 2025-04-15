@@ -3,13 +3,11 @@
 namespace WebsiteSQL\Framework\Core;
 
 use WebsiteSQL\Framework\Kernel;
-use WebsiteSQL\Framework\Strategy\ApiStrategy;
 use WebsiteSQL\Framework\Exceptions\GeneralException;
-use Laminas\HttpHandlerRunner\Emitter\SapiEmitter;
-use Laminas\Diactoros\ServerRequestFactory;
-use Laminas\Diactoros\ResponseFactory;
-use League\Container\Container;
-use League\Route\Router;
+use WebsiteSQL\Router\Router;
+use WebsiteSQL\Router\Container;
+use WebsiteSQL\Router\Strategy\ApiStrategy;
+use WebsiteSQL\Router\Factory\ResponseFactory;
 
 class App extends Kernel
 {
@@ -59,11 +57,6 @@ class App extends Kernel
 		// Remove X-Powered-By header
         header_remove('X-Powered-By');
 
-        // Create the request object
-        $request = ServerRequestFactory::fromGlobals(
-            $_SERVER, $_GET, $_POST, $_COOKIE, $_FILES
-        );
-
         // Create the response factory
         $responseFactory = new ResponseFactory();
 
@@ -99,11 +92,7 @@ class App extends Kernel
 			throw new GeneralException("Routes file not found: $routesFile");
 		}
 
-        // Dispatch the request
-        $response = $this->router->dispatch($request);
-
-        // Send the response with SapiEmitter
-        (new SapiEmitter())->emit($response);
+        $this->router->serve();
     }
 
     /*

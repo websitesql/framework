@@ -15,14 +15,11 @@
         "php": "^8.2",
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
-        "laminas/laminas-diactoros": "^3.5",
-        "laminas/laminas-httphandlerrunner": "^2.11",
         "league/climate": "^3.10",
-        "league/container": "^5.0",
-        "league/route": "^6.0",
         "websitesql/config": "^1.0",
         "websitesql/database": "^1.0",
         "websitesql/mailer": "^1.0",
+        "websitesql/router": "^1.0",
         "websitesql/utilities": "^1.0"
     },
     "autoload": {
