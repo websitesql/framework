@@ -9,6 +9,13 @@ use WebsiteSQL\Mailer\Mailer;
 class Kernel
 {
     /**
+     * This string holds the kernel version for the application
+     * 
+     * @var string
+     */
+	public const VERSION = '1.0.0';
+
+    /**
      * This string holds the basePath for the application
      * 
      * @var string
@@ -41,8 +48,21 @@ class Kernel
      */
     public function __construct()
     {
+		// Get the current directory
+		$dir = __DIR__;
+
+		// Traverse the directory tree to find the root directory
+		while ($dir !== '/' && !file_exists($dir . '/composer.json')) {
+			$dir = dirname($dir);
+		}
+
+		// If the root directory is not found, throw an exception
+		if ($dir === '/') {
+			throw new \RuntimeException('Unable to find application root directory');
+		}
+
 		// Set the base path for the application
-        $this->basePath = realpath(__DIR__ . '/..');
+		$this->basePath = $dir;
 
 		// Load the config
 		$this->config = new Config($this->basePath);
