@@ -63,6 +63,9 @@ class App extends Kernel
 
         // Register this instance in the container
         $this->container->add(App::class, $this);
+
+		// Serve the application
+		$this->serve();
     }
 
     /*
