@@ -4,7 +4,7 @@ namespace WebsiteSQL\Framework;
 
 use WebsiteSQL\Framework\Config\Config;
 use WebsiteSQL\Framework\Mailer\Mailer;
-use WebsiteSQL\Database\Database;
+use WebsiteSQL\Framework\Database\Database;
 
 class Kernel
 {
