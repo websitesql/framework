@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
 
-namespace WebsiteSQL\Database;
+namespace WebsiteSQL\Framework\Database;
 
-use WebsiteSQL\Database\Providers\MigrationProvider;
+use WebsiteSQL\Framework\Database\Providers\MigrationProvider;
 use Medoo\Medoo;
 use Exception;
 

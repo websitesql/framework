@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace WebsiteSQL\Database\Providers;
+namespace WebsiteSQL\Framework\Database\Providers;
 
 use Medoo\Medoo;
 use Exception;
