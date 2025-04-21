@@ -3,11 +3,20 @@
 namespace WebsiteSQL\Framework\Router\Factory;
 
 use Laminas\Diactoros\ResponseFactory as LaminasResponseFactory;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ResponseFactoryInterface;
 
-class ResponseFactory extends LaminasResponseFactory
+class ResponseFactory implements ResponseFactoryInterface
 {
-	public function __construct()
-	{
-		parent::__construct();
-	}
+    private ResponseFactoryInterface $factory;
+
+    public function __construct()
+    {
+        $this->factory = new LaminasResponseFactory();
+    }
+
+    public function createResponse(int $code = 200, string $reasonPhrase = ''): ResponseInterface
+    {
+        return $this->factory->createResponse($code, $reasonPhrase);
+    }
 }
