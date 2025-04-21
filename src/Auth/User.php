@@ -1,11 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace WebsiteSQL\Framework\Providers;
+namespace WebsiteSQL\Framework\Auth;
 
 use WebsiteSQL\Framework\Exceptions\UserAlreadyExistsException;
-use WebsiteSQL\Framework\App;
+use WebsiteSQL\Framework\Core\App;
+use WebsiteSQL\Framework\Utilities\Utilities;
 
-class UserProvider
+class User
 {
     /*
      * This object holds the Medoo database connection
@@ -39,7 +40,7 @@ class UserProvider
     public function register(string $firstname, string $lastname, string $email, string $password, bool $approved = false, bool $email_verified = false): bool
     {
         // Check if the email is already in use
-        $UserQuery = $this->app->getDatabase()->get($this->app->getStrings()->getTableUsers(), '*', ['email' => $email]);
+        $UserQuery = $this->app->getDatabase()->get('users', '*', ['email' => $email]);
         if ($UserQuery)
         {
             throw new UserAlreadyExistsException();
@@ -49,8 +50,8 @@ class UserProvider
         $password = password_hash($password, PASSWORD_ARGON2ID);
 
         // Insert the user into the database
-        $this->app->getDatabase()->insert($this->app->getStrings()->getTableUsers(), [
-            'uuid' => $this->app->getUtilities()->generateUuid(4),
+        $this->app->getDatabase()->insert('users', [
+            'uuid' => Utilities::uuid()->generate('4')->toString(),
             'firstname' => $firstname,
             'lastname' => $lastname,
             'email' => $email,
@@ -58,7 +59,7 @@ class UserProvider
             'approved' => $approved,
             'locked' => 0,
             'email_verified' => $email_verified,
-            'created_at' => $this->app->getUtilities()->getDateTime(),
+            'created_at' => Utilities::datetime()->toString(),
         ]);
 
         // Get the user ID
@@ -78,7 +79,7 @@ class UserProvider
      */
     public function getUserById(int $id): array
     {
-        return $this->app->getDatabase()->get($this->app->getStrings()->getTableUsers(), '*', ['id' => $id]);
+        return $this->app->getDatabase()->get('users', '*', ['id' => $id]);
     }
 
     /*
@@ -88,7 +89,7 @@ class UserProvider
      */
     public function getUsers(): array
     {
-        return $this->app->getDatabase()->select($this->app->getStrings()->getTableUsers(), '*');
+        return $this->app->getDatabase()->select('users', '*');
     }
 
     /*
@@ -106,23 +107,21 @@ class UserProvider
         }
 
         // Generate a token for the email confirmation link
-        $token = $this->app->getUtilities()->randomString(100);
+        $token = Utilities::string()->random(128);
         $expiry = new \DateTime('+1 day');
 
         // Update the user with the token and expiry
-        $this->app->getDatabase()->update($this->app->getStrings()->getTableUsers(), [
+        $this->app->getDatabase()->update('users', [
             'email_verify_code' => $token,
             'email_verify_expiry' => $expiry->format('Y-m-d H:i:s')
         ], ['id' => $id]);
 
-        // Generate the email content
-        $content = $this->app->getRenderer()->render('email::email-confirmation', [
-            'firstname' => $user['firstname'],
-            'url' => $this->app->getRouter()->getRoute('app.confirm-email', ['token' => $token])
-        ]);
-
-        // Send the email
-        $this->app->getMail()->send($user['email'], 'Verify your email address', $content);
+		// Send the confirmation email
+		$this->app->getMailer()->template('email-confirmation', [
+			'firstname' => $user['firstname'],
+			'token' => $token,
+			'expiry' => $expiry->format('Y-m-d H:i:s')
+		])->subject('Verify your email address')->send($user['email']);
 
         return true;
     }

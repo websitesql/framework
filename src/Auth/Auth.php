@@ -1,20 +1,20 @@
 <?php declare(strict_types=1);
 
-namespace WebsiteSQL\Framework\Providers;
+namespace WebsiteSQL\Framework\Auth;
 
 use WebsiteSQL\Framework\Exceptions\NotFoundException;
-
 use WebsiteSQL\Framework\Exceptions\IncorrectPasswordException;
 use WebsiteSQL\Framework\Exceptions\UserNotApprovedException;
 use WebsiteSQL\Framework\Exceptions\UserLockedOutException;
 use WebsiteSQL\Framework\Exceptions\EmailNotVerifiedException;
 use WebsiteSQL\Framework\Exceptions\SessionExpiredException;
-use WebsiteSQL\Framework\App;
 use WebsiteSQL\Framework\Exceptions\MissingRequiredFieldsException;
 use WebsiteSQL\Framework\Exceptions\UserNotFoundException;
+use WebsiteSQL\Framework\Core\App;
 use Exception;
+use WebsiteSQL\Framework\Utilities\Utilities;
 
-class AuthProvider
+class Auth
 {
     /*
      * This object holds the Medoo database connection
@@ -47,18 +47,18 @@ class AuthProvider
 	public function generateToken($userId): array
 	{
 		// Generate a token
-		$token = $this->app->getUtilities()->randomString(128);
+		$token = Utilities::string()->random(128);
 
 		// Create the expiration date
-		$expiresAt = $this->app->getUtilities()->calculateExpiryDate(
+		$expiresAt = Utilities::security()->calculateExpiryDate(
 			new \DateTime(),
 			(int)$this->app->getConfig()->get('auth.max_age'),
 			(int)$this->app->getConfig()->get('auth.refresh')
 		);
 
 		// Insert the token into the database
-		$this->app->getDatabase()->insert($this->app->getStrings()->getTableTokens(), [
-			'uuid' => $this->app->getUtilities()->generateUuid(4),
+		$this->app->getDatabase()->insert('tokens', [
+			'uuid' => Utilities::uuid()->generate('4')->toString(),
 			'token' => $token,
 			'user' => $userId,
 			'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
@@ -81,14 +81,14 @@ class AuthProvider
 	public function renewToken(string $token): array
 	{
 		// Get the token from the database
-		$token_row = $this->app->getDatabase()->get($this->app->getStrings()->getTableTokens(), '*', ['token' => $token]);
+		$token_row = $this->app->getDatabase()->get('tokens', '*', ['token' => $token]);
 		if (!$token_row)
 		{
 			throw new NotFoundException('The token does not exist in the database.');
 		}
 
 		// Calculate the new expiration date
-		$expiresAt = $this->app->getUtilities()->calculateExpiryDate(
+		$expiresAt = Utilities::security()->calculateExpiryDate(
 			new \DateTime($token_row['created_at']),
 			(int)$this->app->getConfig()->get('auth.max_age'),
 			(int)$this->app->getConfig()->get('auth.refresh')
@@ -101,7 +101,7 @@ class AuthProvider
 		}
 
 		// Update the token timestamp
-		$this->app->getDatabase()->update($this->app->getStrings()->getTableTokens(), [
+		$this->app->getDatabase()->update('tokens', [
 			'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
 		], ['id' => $token_row['id']]);
 
@@ -128,7 +128,7 @@ class AuthProvider
 			}
 
 			// Get the token from the database
-			$tokenData = $this->app->getDatabase()->get($this->app->getStrings()->getTableTokens(), '*', ['token' => $token]);
+			$tokenData = $this->app->getDatabase()->get('tokens', '*', ['token' => $token]);
 			if (!$tokenData)
 			{
 				throw new NotFoundException('The token does not exist in the database.');
@@ -142,7 +142,7 @@ class AuthProvider
             if ($timeNow > $timeExpiresAt)
             {
 				// Delete the token from the database
-                $this->app->getDatabase()->delete($this->app->getStrings()->getTableTokens(), ['token' => $token]);
+                $this->app->getDatabase()->delete('tokens', ['token' => $token]);
 
 				// Throw an exception
                 throw new SessionExpiredException();
@@ -167,14 +167,14 @@ class AuthProvider
 	{
 		try {
 			// Get the token from the database
-			$token_row = $this->app->getDatabase()->get($this->app->getStrings()->getTableTokens(), '*', ['token' => $token]);
+			$token_row = $this->app->getDatabase()->get('tokens', '*', ['token' => $token]);
 			if (!$token_row)
 			{
 				throw new NotFoundException('The token does not exist in the database.');
 			}
 
 			// Delete the token from the database
-			$this->app->getDatabase()->delete($this->app->getStrings()->getTableTokens(), ['token' => $token]);
+			$this->app->getDatabase()->delete('tokens', ['token' => $token]);
 
 			// Return the user's ID
 			return true;
@@ -204,7 +204,7 @@ class AuthProvider
 		}
 
 		// Check if the email exists in the database
-		$user_row = $this->app->getDatabase()->get($this->app->getStrings()->getTableUsers(), '*', ['email' => $email]);
+		$user_row = $this->app->getDatabase()->get('users', '*', ['email' => $email]);
 		if (!$user_row)
 		{
 			throw new UserNotFoundException();
@@ -245,7 +245,7 @@ class AuthProvider
 	public function getUserId(string $token): int|null
 	{
 		// Get the user's ID from the database
-		$token_row = $this->app->getDatabase()->get($this->app->getStrings()->getTableTokens(), '*', ['token' => $token]);
+		$token_row = $this->app->getDatabase()->get('tokens', '*', ['token' => $token]);
 		if (!$token_row)
 		{
 			return null;

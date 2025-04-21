@@ -2,19 +2,12 @@
 
 namespace WebsiteSQL\Framework;
 
-use WebsiteSQL\Config\Config;
+use WebsiteSQL\Framework\Config\Config;
+use WebsiteSQL\Framework\Mailer\Mailer;
 use WebsiteSQL\Database\Database;
-use WebsiteSQL\Mailer\Mailer;
 
 class Kernel
 {
-    /**
-     * This string holds the kernel version for the application
-     * 
-     * @var string
-     */
-	public const VERSION = '1.0.0';
-
     /**
      * This string holds the basePath for the application
      * 
@@ -48,7 +41,7 @@ class Kernel
      */
     public function __construct()
     {
-		// Get the current directory
+		// Set the current directory
 		$dir = __DIR__;
 
 		// Traverse the directory tree to find the root directory
@@ -77,14 +70,14 @@ class Kernel
 			'database' => $this->config->get('database.name'),
 			'username' => $this->config->get('database.username'),
 			'password' => $this->config->get('database.password')
-		], $this->config->get('database.migrations_path'));
+		], '../migrations');
 
 		// Load the mail provider
 		$this->mailer = new Mailer([
 			'driver' => $this->config->get('mail.driver'), // Mail driver (smtp, sendmail, mailgun, etc.)
 			'from' => $this->config->get('mail.from'), // Sender email address
 			'from_name' => $this->config->get('app.name'), // Sender name
-			'template_path' => $this->config->get('mail.template_path'), // Path to email templates
+			'template_path' => $this->config->get('path.mailer'), // Path to email templates
 			'smtp_host' => $this->config->get('mail.smtp_host'), // SMTP server address
 			'smtp_port' => $this->config->get('mail.smtp_port'), // SMTP server port
 			'smtp_username' => $this->config->get('mail.smtp_user'), // SMTP username

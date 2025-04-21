@@ -1,15 +1,16 @@
 <?php
 
-namespace WebsiteSQL\Framework\Middleware;
+namespace WebsiteSQL\Framework\Auth\Middleware;
 
 use Error;
 use Exception;
-use WebsiteSQL\Framework\App;
+use WebsiteSQL\Framework\Core\App;
 use League\Route\Http\Exception\UnauthorizedException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Http\Server\MiddlewareInterface;
+use WebsiteSQL\Framework\Utilities\Utilities;
 
 class CommonMiddleware implements MiddlewareInterface
 {
@@ -40,10 +41,10 @@ class CommonMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface {
         // Get the token from the Authorization header if it exists
         $authorizationHeader = $request->getHeaderLine('Authorization');
-        $authorizationToken = $this->app->getUtilities()->parseAuthorization($authorizationHeader);
-
+        $authorizationToken = Utilities::security()->parseAuthorization($authorizationHeader);
+	
         // Get the token from the Cookie header if it exists
-        $parsedCookies = $this->app->getUtilities()->parseCookies($request->getHeaderLine('Cookie'));
+        $parsedCookies = Utilities::security()->parseCookies($request->getHeaderLine('Cookie'));
         $cookiesToken = $parsedCookies['access_token'] ?? null;
 
         // Get the token
@@ -70,7 +71,7 @@ class CommonMiddleware implements MiddlewareInterface
             $response = $handler->handle($request);
 
 			// Generate the cookie string
-			$cookieString = $this->app->getUtilities()->generateCookieHeader('access_token', $renew_token['token'], [
+			$cookieString = Utilities::security()->generateCookieHeader('access_token', $renew_token['token'], [
 				'domain' => $this->app->getConfig()->get('cookies.domain'),
 				'expires' => $renew_token['expires_at'],
 			]);

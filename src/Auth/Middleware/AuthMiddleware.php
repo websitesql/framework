@@ -1,9 +1,9 @@
 <?php
 
-namespace WebsiteSQL\Framework\Middleware;
+namespace WebsiteSQL\Framework\Auth\Middleware;
 
 use Error;
-use WebsiteSQL\Framework\App;
+use WebsiteSQL\Framework\Core\App;
 use WebsiteSQL\Framework\Exceptions\UnauthorizedException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

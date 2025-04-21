@@ -2,16 +2,18 @@
 
 namespace WebsiteSQL\Framework\Core;
 
+use Exception;
 use WebsiteSQL\Framework\Kernel;
-use WebsiteSQL\Framework\Exceptions\GeneralException;
-use WebsiteSQL\Router\Router;
-use WebsiteSQL\Router\Container;
-use WebsiteSQL\Router\Strategy\ApiStrategy;
-use WebsiteSQL\Router\Factory\ResponseFactory;
+use WebsiteSQL\Framework\Router\Router;
+use WebsiteSQL\Framework\Router\Container;
+use WebsiteSQL\Framework\Router\Strategy\ApiStrategy;
+use WebsiteSQL\Framework\Router\Factory\ResponseFactory;
+use WebsiteSQL\Framework\Exception\GeneralException;
+use WebsiteSQL\Framework\Auth\User;
+use WebsiteSQL\Framework\Auth\Auth;
 
 class App extends Kernel
 {
-
     /**
      * This object holds the Router class
      * 
@@ -26,12 +28,32 @@ class App extends Kernel
 	 */
 	private Container $container;
 
+	/**
+	 * This object holds the User class
+	 * 
+	 * @var User
+	 */
+	private User $user;
+
+	/**
+	 * This object holds the Auth class
+	 * 
+	 * @var Auth
+	 */
+	private Auth $auth;
+
     /**
      * Constructor
      */
     public function __construct()
     {
 		parent::__construct();
+
+		// Create the user object
+		$this->user = new User($this);
+
+		// Create the auth object
+		$this->auth = new Auth($this);
 
 		// Create the router
 		$this->router = new Router();
@@ -85,15 +107,29 @@ class App extends Kernel
         $this->router->setStrategy($apiStrategy);
 
         // Import the routes file routes/api.php
-		$routesFile = $this->getBasePath() . '/routes/api.php';
-		if (file_exists($routesFile)) {
-			require_once $routesFile;
-		} else {
-			throw new GeneralException("Routes file not found: $routesFile");
-		}
+		$this->importRoutes();
 
+		// Set the default route
         $this->router->serve();
     }
+
+	/**
+	 * This method imports routes
+	 * 
+	 * @return void
+	 */
+	private function importRoutes(): void
+	{
+		// Define the router as a local variable
+		$app = $this->router;
+
+		// Require the routes file
+		try {
+			require_once $this->getBasePath() . '/routes/api.php';
+		} catch (Exception $e) {
+			throw new GeneralException("Failed to import the routes file", 0, $e);
+		}
+	}
 
     /*
      * This method returns the router object
@@ -105,4 +141,26 @@ class App extends Kernel
         // Return the router object
         return $this->router;
     }
+
+	/**
+	 * This method returns the user object
+	 * 
+	 * @return User
+	 */
+	public function getUser(): User
+	{
+		// Return the user object
+		return $this->user;
+	}
+
+	/**
+	 * This method returns the auth object
+	 * 
+	 * @return Auth
+	 */
+	public function getAuth(): Auth
+	{
+		// Return the auth object
+		return $this->auth;
+	}
 }

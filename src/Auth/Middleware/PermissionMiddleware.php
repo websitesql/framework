@@ -1,12 +1,12 @@
 <?php
 
-namespace WebsiteSQL\Framework\Middleware;
+namespace WebsiteSQL\Framework\Auth\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use WebsiteSQL\Framework\App;
+use WebsiteSQL\Framework\Core\App;
 use WebsiteSQL\Framework\Exceptions\PermissionDeniedException;
 
 class PermissionMiddleware implements MiddlewareInterface
