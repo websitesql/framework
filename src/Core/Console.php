@@ -22,39 +22,13 @@ class Console
     {
         $this->command = new Command();
 
-		// Run the command line interface
-		$this->run($argv);
-    }
-
-    /**
-     * Run the console application
-     *
-     * @param array $args Command line arguments
-     * @return void
-     */
-    public function run(array $args = []): void
-    {
-        // Display welcome message
-        $this->displayWelcome();
-
         // Get the command
-        $command = $args[1] ?? 'help';
+        $command = $argv[1] ?? 'help';
         
         // Get additional arguments
-        $commandArgs = array_slice($args, 2);
+        $commandArgs = array_slice($argv, 2);
 
         // Run the command
         $this->command->run($command, $commandArgs);
-    }
-
-    /**
-     * Display welcome message
-     *
-     * @return void
-     */
-    protected function displayWelcome(): void
-    {
-        echo "Welcome to WebsiteSQL Framework!\n";
-        echo "-------------------------------\n\n";
     }
 }
