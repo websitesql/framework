@@ -106,6 +106,11 @@ class App extends Kernel
 		// Add the request to the container
         $apiStrategy->setContainer($this->container);
 
+		// Add the container to PSR-7 request attributes for middleware access
+        $apiStrategy->addResponseDecorator(function($response) {
+			return $response->withAttribute('container', $this->container);
+		});
+
         // Set the API strategy
         $this->router->setStrategy($apiStrategy);
 
@@ -166,4 +171,14 @@ class App extends Kernel
 		// Return the auth object
 		return $this->auth;
 	}
+
+    /**
+     * Get the container
+     * 
+     * @return Container
+     */
+    public function getContainer(): Container
+    {
+        return $this->container;
+    }
 }

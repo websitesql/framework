@@ -13,9 +13,14 @@ use WebsiteSQL\Framework\Limiter\Limiter;
 class RateLimitMiddleware implements MiddlewareInterface
 {
     /**
-     * @var Limiter Limiter controller
+     * @var Limiter|null Limiter controller
      */
-    private Limiter $limiter;
+    private ?Limiter $limiter = null;
+    
+    /**
+     * @var App|null App instance
+     */
+    private ?App $app = null;
     
     /**
      * @var string|null Rate limit profile to use
@@ -30,15 +35,25 @@ class RateLimitMiddleware implements MiddlewareInterface
     /**
      * Constructor
      *
-     * @param App $app
      * @param string|null $profile Rate limit profile to use
      * @param bool $headers Whether to include rate limit headers in responses
      */
-    public function __construct(App $app, ?string $profile = null, bool $headers = true)
+    public function __construct(?string $profile = null, bool $headers = true)
     {
-        $this->limiter = new Limiter($app);
         $this->profile = $profile;
         $this->headers = $headers;
+    }
+    
+    /**
+     * Set the app instance (for container injection)
+     *
+     * @param App $app
+     * @return void
+     */
+    public function setApp(App $app): void
+    {
+        $this->app = $app;
+        $this->limiter = new Limiter($app);
     }
     
     /**
@@ -46,6 +61,12 @@ class RateLimitMiddleware implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        // Ensure App is injected via container
+        if ($this->app === null) {
+            $this->app = $request->getAttribute('container')->get(App::class);
+            $this->limiter = new Limiter($this->app);
+        }
+        
         // Determine if user is authenticated
         $isAuthenticated = $this->isAuthenticated($request);
         

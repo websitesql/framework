@@ -5,6 +5,14 @@ namespace WebsiteSQL\Framework\Console\Commands;
 class Auth
 {
 	/**
+	 * Constructor
+	 */
+	public function __construct()
+	{
+		// Initialization code can go here if needed
+	}
+
+	/**
 	 * This method creates a new user
 	 * 
 	 * @param string $firstname
