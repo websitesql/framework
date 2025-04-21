@@ -48,26 +48,15 @@ class Kernel
      */
     public function __construct()
     {
-		// Set the current directory
-		$dir = __DIR__;
+        // Determine the project root using Composer's autoloader
+        $reflection = new \ReflectionClass(\Composer\Autoload\ClassLoader::class);
+        $vendorDir = dirname(dirname($reflection->getFileName()));
+        $this->basePath = dirname($vendorDir);
 
-		// Traverse the directory tree to find the root directory
-		while ($dir !== '/' && !file_exists($dir . '/composer.json')) {
-			$dir = dirname($dir);
-		}
+        // Load the config
+        $this->config = new Config($this->basePath);
 
-		// If the root directory is not found, throw an exception
-		if ($dir === '/') {
-			throw new \RuntimeException('Unable to find application root directory');
-		}
-
-		// Set the base path for the application
-		$this->basePath = $dir;
-
-		// Load the config
-		$this->config = new Config($this->basePath);
-
-		// Set timezone
+        // Set timezone
         date_default_timezone_set($this->config->get('app.timezone'));
 
 		// Connect to the database
