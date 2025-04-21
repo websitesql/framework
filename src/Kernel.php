@@ -8,6 +8,13 @@ use WebsiteSQL\Database\Database;
 
 class Kernel
 {
+	/**
+	 * This string holds the version of the kernel
+	 * 
+	 * @var string
+	 */
+	public const VERSION = '1.0.2';
+
     /**
      * This string holds the basePath for the application
      * 
