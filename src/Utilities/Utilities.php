@@ -7,51 +7,155 @@ use DateTime;
 
 class Utilities
 {
-    /*
+	/**
+	 * Return a random string of a specified length
+	 * 
+	 * @param int $length = Length of the string (Default: 10)
+	 * @param bool $numeric (optional) = Include numeric characters (Default: true)
+	 * @param bool $lowercase (optional) = Include lowercase characters (Default: true)
+	 * @param bool $uppercase (optional) = Include uppercase characters (Default: true)
+	 * @param bool $special (optional) = Include special characters (Default: false)
+	 * @return mixed
+	 */
+	public function random(int $length = 10, bool $numeric = true, bool $lowercase = true, bool $uppercase = true, bool $special = false): mixed
+	{
+		// Create a string of characters to use for the random string
+		$characters = '';
+
+		// Add numeric characters if requested
+		if ($numeric) {
+			$characters .= '0123456789';
+		}
+
+		// Add lowercase characters if requested
+		if ($lowercase) {
+			$characters .= 'abcdefghijklmnopqrstuvwxyz';
+		}
+
+		// Add uppercase characters if requested
+		if ($uppercase) {
+			$characters .= 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		}
+
+		// Add special characters if requested
+		if ($special) {
+			$characters .= '!@#$%^&*()_+-=[]{}|;:,.<>?';
+		}
+
+		// If no characters were selected, throw an exception
+		if (empty($characters)) {
+			throw new Exception('At least one character set must be selected.');
+		}
+
+		// Generate the random string
+		$charactersLength = strlen($characters);
+
+		// Initialize the random string
+		$randomString = '';
+
+		// Loop through the length of the string and add a random character from the selected characters
+		for ($i = 0; $i < $length; $i++) {
+			$randomString .= $characters[rand(0, $charactersLength - 1)];
+		}
+
+		// Return the random string
+		if ($numeric && !$lowercase && !$uppercase && !$special) {
+			// If only numeric characters were requested, return the string as an integer
+			return (int) $randomString;
+		} else {
+			// Otherwise, return the string as a string
+			return $randomString;
+		}
+	}
+
+    /**
      * This method returns a random string of a specified length
      * 
+	 * @deprecated - Since 1.3.0 - Use random() instead
+	 * @param int $length = Length of the string (Default: 10)
      * @return string
      */
     public function randomString(int $length = 10): string
     {
-        $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        $charactersLength = strlen($characters);
-        $randomString = '';
-
-        for ($i = 0; $i < $length; $i++) {
-            $randomString .= $characters[rand(0, $charactersLength - 1)];
-        }
-
-        return $randomString;
+        return $this->random($length, true, true, true, false);
     }
 
-    /*
+    /**
      * This method returns a random number of a specified length
      * 
+	 * @deprecated - Since 1.3.0 - Use random() instead
+	 * @param int $length = Length of the number (Default: 10)
      * @return int
      */
     public function randomNumber(int $length = 10): int
     {
-        $characters = '0123456789';
-        $charactersLength = strlen($characters);
-        $randomNumber = '';
-
-        for ($i = 0; $i < $length; $i++) {
-            $randomNumber .= $characters[rand(0, $charactersLength - 1)];
-        }
-
-        return (int) $randomNumber;
+        return $this->random($length, true, false, false, false);
     }
     
-    /*
-     * This method returns a slugified string
+    /**
+     * Return a slugified version of a string
      * 
+	 * @param string $string = The string to slugify
      * @return string
      */
     public function slugify(string $string): string
     {
         return strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $string), '-'));
     }
+
+
+	/**
+	 * Generate a random UUID (Universally Unique Identifier)
+	 * 
+	 * @param string $version = The version of the UUID (Default: 4)
+	 * @return string
+	 */
+	public function uuid($version = 4): string
+	{
+		// Generate 16 random bytes.
+        $data = openssl_random_pseudo_bytes(16);
+    
+        switch ($version) {
+            case 1:
+                // Set the version to 0001 (version 1) and adjust the variant.
+                $data[6] = chr(ord($data[6]) & 0x0f | 0x10); // Set version to 0001
+                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
+                break;
+            case 3:
+                // Set the version to 0011 (version 3) and adjust the variant.
+                $data[6] = chr(ord($data[6]) & 0x0f | 0x30); // Set version to 0011
+                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
+                break;
+            case 4:
+                // Set the version to 0100 (version 4) and adjust the variant.
+                $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // Set version to 0100
+                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
+                break;
+            case 5:
+                // Set the version to 0101 (version 5) and adjust the variant.
+                $data[6] = chr(ord($data[6]) & 0x0f | 0x50); // Set version to 0101
+                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
+                break;
+            default:
+                throw new Exception("Unsupported UUID version: $version");
+        }
+    
+        // Convert the random bytes to a UUID string format.
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+	}
+
+    /**
+     * This method generates a uuid
+     * 
+	 * @deprecated - Since 1.3.0 - Use uuid() instead
+     * @param string $version
+     * @return string
+     */
+    public function generateUuid($version = 4) {
+        return $this->uuid($version);
+    }
+
+
 
     /*
      * This method returns a time ago string
@@ -94,45 +198,6 @@ class Utilities
         } else {
             return date('Y-m-d H:i:s', strtotime($date));
         }
-    }
-
-    /*
-     * This method generates a uuid
-     * 
-     * @param string $version
-     * @return string
-     */
-    public function generateUuid($version = 4) {
-        // Generate 16 random bytes.
-        $data = openssl_random_pseudo_bytes(16);
-    
-        switch ($version) {
-            case 1:
-                // Set the version to 0001 (version 1) and adjust the variant.
-                $data[6] = chr(ord($data[6]) & 0x0f | 0x10); // Set version to 0001
-                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
-                break;
-            case 3:
-                // Set the version to 0011 (version 3) and adjust the variant.
-                $data[6] = chr(ord($data[6]) & 0x0f | 0x30); // Set version to 0011
-                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
-                break;
-            case 4:
-                // Set the version to 0100 (version 4) and adjust the variant.
-                $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // Set version to 0100
-                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
-                break;
-            case 5:
-                // Set the version to 0101 (version 5) and adjust the variant.
-                $data[6] = chr(ord($data[6]) & 0x0f | 0x50); // Set version to 0101
-                $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set variant to 10xx
-                break;
-            default:
-                throw new Exception("Unsupported UUID version: $version");
-        }
-    
-        // Convert the random bytes to a UUID string format.
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     /*
