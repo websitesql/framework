@@ -1,45 +1,42 @@
 <?php declare(strict_types=1);
 
-namespace WebsiteSQL\Http;
+namespace WebsiteSQL\Http\Middleware;
 
 use WebsiteSQL\Http\Message\ResponseInterface;
 use WebsiteSQL\Http\Message\ServerRequestInterface;
-use WebsiteSQL\Http\Middleware\MiddlewareInterface;
-use WebsiteSQL\Http\Middleware\RequestHandlerInterface;
 
 class MiddlewareManager {
-	/**
-	 * This object is used to store the middleware registered in the framework
-	 * 
-	 * @var array<string, callable|string|MiddlewareInterface>
-	 * @access private
-	 */
+    /**
+     * This object is used to store the middleware registered in the framework
+     * 
+     * @var array<string, callable|string|MiddlewareInterface>
+     * @access private
+     */
     private $middleware = [];
     
-	/**
-	 * Register a middleware with a name and a callback
-	 * 
-	 * @param string $name The name of the middleware
-	 * @param callable|string|MiddlewareInterface $middleware The middleware implementation
-	 * @return $this
-	 * @throws \Exception If the middleware name is already registered
-	 */
+    /**
+     * Register a middleware with a name and a callback
+     * 
+     * @param string $name The name of the middleware
+     * @param callable|string|MiddlewareInterface $middleware The middleware implementation
+     * @return $this
+     * @throws \Exception If the middleware name is already registered
+     */
     public function register($name, $middleware) {
         $this->middleware[$name] = $middleware;
         return $this;
     }
     
-	/**
-	 * Run the middleware by name
-	 * 
-	 * @param string $name The name of the middleware to run
-	 * @param ServerRequestInterface $request The request object
-	 * @param ResponseInterface $response The response object
-	 * @param callable $next The next middleware in the stack
-	 * @return ResponseInterface The processed response
-	 * @throws \Exception If the middleware is not registered
-	 */
-    public function run($name, ServerRequestInterface $request, ResponseInterface $response, callable $next) {
+    /**
+     * Run the middleware by name
+     * 
+     * @param string $name The name of the middleware to run
+     * @param ServerRequestInterface $request The request object
+     * @param callable $next The next middleware in the stack
+     * @return ResponseInterface The processed response
+     * @throws \Exception If the middleware is not registered
+     */
+    public function run($name, ServerRequestInterface $request, callable $next) {
         if (!isset($this->middleware[$name])) {
             throw new \Exception("Middleware {$name} not registered");
         }
@@ -51,16 +48,16 @@ class MiddlewareManager {
             return $middleware->process($request, new RequestHandler($next));
         } elseif (is_callable($middleware)) {
             // Callable middleware
-            return $middleware($request, $response, $next);
+            return $middleware($request, $next);
         } elseif (is_string($middleware)) {
             // Class@method style middleware
             list($class, $method) = explode('@', $middleware);
             $instance = new $class();
-            return $instance->$method($request, $response, $next);
+            return $instance->$method($request, $next);
         }
         
         // If we get here, something went wrong
-        return $next($request, $response);
+        return $next($request);
     }
     
     /**
@@ -68,25 +65,24 @@ class MiddlewareManager {
      *
      * @param array $middlewareStack Array of middleware names to execute
      * @param ServerRequestInterface $request The request object
-     * @param ResponseInterface $response The response object
      * @param callable $handler The final handler after all middleware
      * @return ResponseInterface The processed response
      */
-    public function executeStack(array $middlewareStack, ServerRequestInterface $request, ResponseInterface $response, callable $handler) {
-        $next = function (ServerRequestInterface $req, ResponseInterface $res) use ($handler) {
-            return $handler($req, $res);
+    public function executeStack(array $middlewareStack, ServerRequestInterface $request, callable $handler) {
+        $next = function (ServerRequestInterface $req) use ($handler) {
+            return $handler($req);
         };
         
         // Build the middleware stack in reverse
         for ($i = count($middlewareStack) - 1; $i >= 0; $i--) {
             $middleware = $middlewareStack[$i];
-            $next = function (ServerRequestInterface $req, ResponseInterface $res) use ($middleware, $next) {
-                return $this->run($middleware, $req, $res, $next);
+            $next = function (ServerRequestInterface $req) use ($middleware, $next) {
+                return $this->run($middleware, $req, $next);
             };
         }
         
         // Execute the middleware stack
-        return $next($request, $response);
+        return $next($request);
     }
 }
 

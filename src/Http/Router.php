@@ -2,6 +2,10 @@
 
 namespace WebsiteSQL\Http;
 
+use WebsiteSQL\Http\Message\ResponseInterface;
+use WebsiteSQL\Http\Message\ServerRequestInterface;
+use WebsiteSQL\WebsiteSQL;
+
 class Router {
     private $routes = [];
     private $namedRoutes = [];
@@ -16,19 +20,53 @@ class Router {
         $this->namedRoutes[$name] = $route;
     }
     
-    public function dispatch() {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        
-        foreach ($this->routes as $route) {
-            if ($route->matches($method, $uri)) {
-                return $route->execute($uri);
-            }
+    public function dispatch(ServerRequestInterface $request = null): ResponseInterface {
+        if ($request === null) {
+            $request = WebsiteSQL::http()->createServerRequestFromGlobals();
         }
         
-        // No route found
-        http_response_code(404);
-        echo "404 Not Found";
+        $method = $request->getMethod();
+        $uri = $request->getRequestTarget();
+        
+        try {
+            foreach ($this->routes as $route) {
+                if ($route->matches($method, $uri)) {
+                    // The route is responsible for:
+                    // 1. Extracting URI parameters and adding them to the request
+                    // 2. Running middleware before the controller
+                    // 3. Executing the controller with the request and a fresh response
+                    // 4. Returning the final response
+                    return $route->execute($request, WebsiteSQL::http()->createResponse());
+                }
+            }
+            
+            // No route found
+            return WebsiteSQL::http()->jsonResponse(
+                [
+                    'error' => [
+                        'message' => 'The requested resource could not be found.',
+                        'type' => 'RESOURCE_NOT_FOUND',
+                        'code' => 404
+                    ]
+                ],
+                404
+            );
+        } catch (\Exception $e) {
+            // Check if the user has specified a debug flag
+            $debug = WebsiteSQL::config()->get('app.debug', false);
+
+            // Handle other exceptions as needed
+            return WebsiteSQL::http()->jsonResponse(
+                [
+                    'error' => [
+                        'message' => $debug ? $e->getMessage() : 'An internal server error occurred.',
+                        'type' => 'INTERNAL_SERVER_ERROR',
+                        'code' => 500
+                    ],
+                ],
+                500
+            );
+        }
     }
     
     public function url($name, $params = []) {

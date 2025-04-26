@@ -2,6 +2,8 @@
 
 namespace WebsiteSQL\Http;
 
+use WebsiteSQL\Http\Message\ResponseInterface;
+use WebsiteSQL\Http\Message\ServerRequestInterface;
 use WebsiteSQL\WebsiteSQL;
 
 class Route {
@@ -37,28 +39,49 @@ class Route {
         return preg_match($pattern, $uri);
     }
     
-    public function execute($uri) {
-        // Run middleware
-        foreach ($this->middleware as $middleware) {
-            $result = WebsiteSQL::middleware()->run($middleware);
-            if ($result === false) {
-                http_response_code(403);
-                echo "Forbidden";
-                return;
-            }
+    public function execute(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface {
+        // Extract parameters from the URI and add them to the request attributes
+        $params = $this->extractParams($request->getRequestTarget());
+        foreach ($params as $key => $value) {
+            $request = $request->withAttribute($key, $value);
         }
         
-        // Extract parameters
-        $params = $this->extractParams($uri);
+        // If no middleware, just execute the handler
+        if (empty($this->middleware)) {
+            return $this->executeHandler($request);
+        }
         
-        // Execute callback
+        // Execute middleware stack
+        return WebsiteSQL::middleware()->executeStack(
+            $this->middleware,
+            $request,
+			$response,
+            function (ServerRequestInterface $req) {
+				return $this->executeHandler($req);
+            }
+        );
+    }
+    
+    private function executeHandler(ServerRequestInterface $request): ResponseInterface {
         if (is_callable($this->callback)) {
-            return call_user_func_array($this->callback, $params);
+            return call_user_func($this->callback, $request);
         } elseif (is_string($this->callback)) {
             list($controller, $method) = explode('@', $this->callback);
             $controllerInstance = new $controller();
-            return call_user_func_array([$controllerInstance, $method], $params);
+            return $controllerInstance->$method($request);
         }
+        
+        // If callback is invalid, create a default response
+        return WebsiteSQL::http()->jsonResponse(
+			[
+				'error' => [
+					'message' => 'Invalid route callback.',
+					'type' => 'INVALID_CALLBACK',
+					'code' => 500
+				]
+			],
+			500
+		);
     }
     
     public function generateUrl($params = []) {

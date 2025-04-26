@@ -1,6 +1,6 @@
 # WebsiteSQL Framework
 
-A lightweight, flexible PHP framework with support for routing, database operations, and migrations.
+A lightweight, flexible PHP framework with support for routing, middleware, and database operations - now PSR-7 compliant!
 
 ## Table of Contents
 
@@ -62,12 +62,13 @@ WebsiteSQL::db()->config([
 ]);
 
 // Define a simple route
-WebsiteSQL::route('GET', '/', function() {
-    echo 'Hello, WebsiteSQL!';
+WebsiteSQL::route('GET', '/', function($request, $response) {
+    return $response->write('Hello, WebsiteSQL!');
 })->name('home');
 
 // Start the application
-WebsiteSQL::start();
+$response = WebsiteSQL::start();
+WebsiteSQL::http()->emitResponse($response);
 ```
 
 ## Configuration
@@ -121,21 +122,22 @@ WebsiteSQL::config()->add($config);
 
 ```php
 // Simple route with closure
-WebsiteSQL::route('GET', '/', function() {
-    echo 'Hello World!';
+WebsiteSQL::route('GET', '/', function($request, $response) {
+    return $response->write('Hello World!');
 });
 
 // Route with controller
 WebsiteSQL::route('GET', '/users', 'App\\Controllers\\UserController@index');
 
 // Route with parameters
-WebsiteSQL::route('GET', '/user/{id}', function($id) {
-    echo "User ID: {$id}";
+WebsiteSQL::route('GET', '/user/{id}', function($request, $response) {
+    $id = $request->getAttribute('id');
+    return $response->write("User ID: {$id}");
 });
 
 // Named routes
-WebsiteSQL::route('GET', '/about', function() {
-    echo 'About Us';
+WebsiteSQL::route('GET', '/about', function($request, $response) {
+    return $response->write('About Us');
 })->name('about');
 ```
 
@@ -181,18 +183,56 @@ require __DIR__ . '/routes/web.php';
 Middleware provides a way to filter HTTP requests:
 
 ```php
-// Define middleware
-WebsiteSQL::middleware('auth', function() {
+// Define middleware - PSR-15 style
+WebsiteSQL::middleware('auth', function($request, $response, $next) {
     if (!isset($_SESSION['user_id'])) {
         // Redirect to login page
-        header('Location: /login');
-        exit;
+        return $response->withStatus(302)->withHeader('Location', '/login');
     }
-    return true;
+    
+    // Add user to request attributes
+    $user = getUserFromSession($_SESSION['user_id']);
+    $request = $request->withAttribute('user', $user);
+    
+    // Continue to next middleware/handler
+    return $next($request, $response);
 });
 
 // Using controller class for middleware
 WebsiteSQL::middleware('admin', 'App\\Middleware\\AdminMiddleware@handle');
+```
+
+### PSR-15 Middleware Class Example
+
+```php
+<?php
+namespace App\Middleware;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+
+class AuthMiddleware implements MiddlewareInterface
+{
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    {
+        if (!isset($_SESSION['user_id'])) {
+            // Create redirect response
+            return WebsiteSQL::http()->redirect('/login');
+        }
+        
+        // Add user to request attributes
+        $user = getUserFromSession($_SESSION['user_id']);
+        $request = $request->withAttribute('user', $user);
+        
+        // Continue to next handler
+        return $handler->handle($request);
+    }
+}
+
+// Register the middleware
+WebsiteSQL::middleware('auth', new \App\Middleware\AuthMiddleware());
 ```
 
 ### Applying Middleware to Routes
@@ -205,6 +245,92 @@ WebsiteSQL::route('GET', '/dashboard', 'DashboardController@index')
 // Multiple middleware
 WebsiteSQL::route('GET', '/admin/settings', 'AdminController@settings')
     ->middleware(['auth', 'admin']);
+```
+
+## Working with PSR-7 Requests and Responses
+
+WebsiteSQL implements PSR-7 interfaces for HTTP messages, providing a standardized way to work with requests and responses.
+
+### Basic Usage
+
+```php
+WebsiteSQL::route('GET', '/api/hello', function($request, $response) {
+    $name = $request->getQueryParams()['name'] ?? 'World';
+    
+    return $response->json([
+        'message' => "Hello, {$name}!"
+    ]);
+});
+```
+
+### Working with Request Data
+
+```php
+WebsiteSQL::route('POST', '/api/users', function($request, $response) {
+    // Get JSON request body
+    $data = json_decode((string) $request->getBody(), true);
+    
+    // Get form data (if submitted as form)
+    $formData = $request->getParsedBody();
+    
+    // Get query parameters
+    $queryParams = $request->getQueryParams();
+    
+    // Get specific parameter
+    $page = $queryParams['page'] ?? 1;
+    
+    // Get uploaded files
+    $files = $request->getUploadedFiles();
+    
+    // Get route parameters
+    $id = $request->getAttribute('id');
+    
+    // Get header values
+    $token = $request->getHeaderLine('Authorization');
+    
+    // Create and store a user
+    $userId = WebsiteSQL::db()->insert('users', $data);
+    
+    // Return JSON response
+    return $response->withStatus(201)
+        ->json([
+            'id' => $userId,
+            'message' => 'User created successfully'
+        ]);
+});
+```
+
+### Response Creation
+
+```php
+// JSON response
+WebsiteSQL::route('GET', '/api/data', function($request, $response) {
+    return $response->json(['status' => 'success', 'data' => [1, 2, 3]]);
+});
+
+// HTML response
+WebsiteSQL::route('GET', '/page', function($request, $response) {
+    return $response->withHeader('Content-Type', 'text/html')
+        ->write('<h1>Hello World</h1>');
+});
+
+// Text response
+WebsiteSQL::route('GET', '/plain', function($request, $response) {
+    return $response->withHeader('Content-Type', 'text/plain')
+        ->write('Plain text response');
+});
+
+// Redirect
+WebsiteSQL::route('GET', '/redirect', function($request, $response) {
+    return $response->withStatus(302)
+        ->withHeader('Location', '/dashboard');
+});
+
+// Custom status code
+WebsiteSQL::route('GET', '/not-found', function($request, $response) {
+    return $response->withStatus(404)
+        ->json(['error' => 'Resource not found']);
+});
 ```
 
 ## Database Operations
@@ -436,7 +562,8 @@ WebsiteSQL\WebsiteSQL::db()->config([
 require __DIR__ . '/../routes/web.php';
 
 // Start the application
-WebsiteSQL::start();
+$response = WebsiteSQL\WebsiteSQL::start();
+WebsiteSQL\WebsiteSQL::http()->emitResponse($response);
 ```
 
 ### Example Controller
@@ -446,24 +573,45 @@ WebsiteSQL::start();
 namespace App\Controllers;
 
 use WebsiteSQL\WebsiteSQL;
+use WebsiteSQL\Http\Message\ResponseInterface;
+use WebsiteSQL\Http\Message\ServerRequestInterface;
 
 class UserController {
-    public function index() {
+    public function index(ServerRequestInterface $request, ResponseInterface $response) {
         $users = WebsiteSQL::db()->get('users');
-        // Render view with users
+        
+        // Return JSON response
+        return $response->json(['users' => $users]);
     }
     
-    public function show($id) {
+    public function show(ServerRequestInterface $request, ResponseInterface $response) {
+        $id = $request->getAttribute('id');
         $user = WebsiteSQL::db()->get('users', '*', ['id' => $id]);
-        // Render view with user
+        
+        if (!$user) {
+            return $response->withStatus(404)
+                ->json(['error' => 'User not found']);
+        }
+        
+        return $response->json(['user' => $user]);
     }
     
-    public function store() {
+    public function store(ServerRequestInterface $request, ResponseInterface $response) {
+        $data = $request->getParsedBody();
+        
+        // Validate data (simplified example)
+        if (empty($data['name']) || empty($data['email'])) {
+            return $response->withStatus(400)
+                ->json(['error' => 'Name and email are required']);
+        }
+        
         $userId = WebsiteSQL::db()->insert('users', [
-            'name' => $_POST['name'],
-            'email' => $_POST['email']
+            'name' => $data['name'],
+            'email' => $data['email']
         ]);
-        // Redirect to user page
+        
+        return $response->withStatus(201)
+            ->json(['id' => $userId, 'message' => 'User created']);
     }
 }
 ```
@@ -476,7 +624,7 @@ class UserController {
 // Register error handler
 set_error_handler(function($severity, $message, $file, $line) {
     if (WebsiteSQL::config()->get('app.debug')) {
-        echo "Error: {$message} in {$file} on line {$line}");
+        echo "Error: {$message} in {$file} on line {$line}";
     } else {
         // Log error and show friendly message
         error_log("Error: {$message} in {$file} on line {$line}");
