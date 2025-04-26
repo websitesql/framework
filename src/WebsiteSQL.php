@@ -48,6 +48,15 @@ class WebsiteSQL {
 	public static function http() {
 		return self::getInstance('\WebsiteSQL\Http\Http');
 	}
+
+	/**
+	 * Return a new Utilities instance
+	 * 
+	 * @return \WebsiteSQL\Utilities\Utilities
+	 */
+	public static function utils() {
+		return new \WebsiteSQL\Utilities\Utilities();
+	}
     
     /**
      * Get or register middleware
