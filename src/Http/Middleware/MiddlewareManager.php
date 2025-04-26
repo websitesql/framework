@@ -15,6 +15,14 @@ class MiddlewareManager {
     private $middleware = [];
     
     /**
+     * This array stores global middleware that runs on every request
+     * 
+     * @var array<string>
+     * @access private
+     */
+    private $globalMiddleware = [];
+    
+    /**
      * Register a middleware with a name and a callback
      * 
      * @param string $name The name of the middleware
@@ -25,6 +33,30 @@ class MiddlewareManager {
     public function register($name, $middleware) {
         $this->middleware[$name] = $middleware;
         return $this;
+    }
+    
+    /**
+     * Add middleware to the global stack
+     * 
+     * @param string|array $middlewareNames The middleware name(s) to add to the global stack
+     * @return $this
+     */
+    public function addGlobal($middlewareNames) {
+        if (is_string($middlewareNames)) {
+            $middlewareNames = [$middlewareNames];
+        }
+        
+        $this->globalMiddleware = array_merge($this->globalMiddleware, $middlewareNames);
+        return $this;
+    }
+    
+    /**
+     * Get registered global middleware
+     * 
+     * @return array The global middleware stack
+     */
+    public function getGlobalMiddleware() {
+        return $this->globalMiddleware;
     }
     
     /**
@@ -69,13 +101,16 @@ class MiddlewareManager {
      * @return ResponseInterface The processed response
      */
     public function executeStack(array $middlewareStack, ServerRequestInterface $request, callable $handler) {
+        // Combine global middleware with route middleware
+        $fullStack = array_merge($this->globalMiddleware, $middlewareStack);
+        
         $next = function (ServerRequestInterface $req) use ($handler) {
             return $handler($req);
         };
         
         // Build the middleware stack in reverse
-        for ($i = count($middlewareStack) - 1; $i >= 0; $i--) {
-            $middleware = $middlewareStack[$i];
+        for ($i = count($fullStack) - 1; $i >= 0; $i--) {
+            $middleware = $fullStack[$i];
             $next = function (ServerRequestInterface $req) use ($middleware, $next) {
                 return $this->run($middleware, $req, $next);
             };

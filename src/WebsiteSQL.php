@@ -74,6 +74,16 @@ class WebsiteSQL {
     }
     
     /**
+     * Add global middleware that runs on every request
+     * 
+     * @param string|array $middleware Middleware name(s) to run globally
+     * @return \WebsiteSQL\Http\MiddlewareManager
+     */
+    public static function useGlobalMiddleware($middleware) {
+        return self::middleware()->addGlobal($middleware);
+    }
+    
+    /**
      * Add a route to the router
      * 
      * @param string $method HTTP method
