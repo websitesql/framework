@@ -2,10 +2,6 @@
 
 namespace WebsiteSQL;
 
-use WebsiteSQL\Http\Router;
-use WebsiteSQL\Http\Request;
-use WebsiteSQL\Http\Response;
-
 class WebsiteSQL {
 	/**
 	 * This object is used to store the instances of the classes that are created by the framework
@@ -45,28 +41,28 @@ class WebsiteSQL {
     /**
      * Get the Router instance
      * 
-     * @return \WebsiteSQL\Http\Router
+     * @return \WebsiteSQL\Router\Router
      */
     public static function router() {
-        return self::getInstance('\WebsiteSQL\Http\Router');
+        return self::getInstance('\WebsiteSQL\Router\Router');
     }
     
     /**
      * Create a new Request instance from global variables
      * 
-     * @return \WebsiteSQL\Http\Request
+     * @return \WebsiteSQL\Router\Request
      */
     public static function request() {
-        return Request::createFromGlobals();
+        return \WebsiteSQL\Router\Request::createFromGlobals();
     }
     
     /**
      * Create a new Response instance
      * 
-     * @return \WebsiteSQL\Http\Response
+     * @return \WebsiteSQL\Router\Response
      */
     public static function response() {
-        return new Response();
+        return new \WebsiteSQL\Router\Response();
     }
     
     /**
