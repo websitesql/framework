@@ -41,10 +41,16 @@ class Response {
      * @param int $code HTTP status code
      * @return $this
      */
-    public function status($code) {
-        $this->status = $code;
-        return $this;
-    }
+	public function status($code) {
+		// Validate that code is an integer and a valid HTTP status code (100-599)
+		if (is_int($code) && $code >= 100 && $code <= 599) {
+			$this->status = $code;
+		} else {
+			// Default to 500 Internal Server Error if invalid
+			$this->status = 500;
+		}
+		return $this;
+	}
     
     /**
      * Set a response header
