@@ -360,14 +360,11 @@ class Router {
         // Match the route
         $routeFound = false;
         $result = null;
+        $methodNotAllowed = false;
+        $allowedMethods = [];
         
         foreach ($this->routes as $route) {
-            if (strpos($route['method'], $method) === false) {
-                continue;
-            }
-            
             $pattern = $route['pattern'];
-            $params = [];
             
             // Apply parameter patterns
             foreach ($this->patterns as $name => $regex) {
@@ -379,38 +376,69 @@ class Router {
             
             // Check if route matches
             if (preg_match('#^' . $pattern . '$#', $uri, $matches)) {
-                $routeFound = true;
-                
-                // Extract parameters
-                array_shift($matches); // Remove first match (the full match)
-                
-                // Execute route middleware
-                foreach ($route['middleware'] as $middleware) {
-                    $middlewareResult = $this->executeMiddleware($middleware, $request, $response);
-                    if ($middlewareResult instanceof Response) {
-                        return $middlewareResult->send();
+                // If the method matches, handle the route
+                if (strpos($route['method'], $method) !== false) {
+                    $routeFound = true;
+                    
+                    // Extract parameters
+                    array_shift($matches); // Remove first match (the full match)
+                    
+                    // Execute route middleware
+                    foreach ($route['middleware'] as $middleware) {
+                        $middlewareResult = $this->executeMiddleware($middleware, $request, $response);
+                        if ($middlewareResult instanceof Response) {
+                            return $middlewareResult->send();
+                        }
+                    }
+                    
+                    // Execute the route callback
+                    $callback = $route['callback'];
+                    
+                    if (is_callable($callback)) {
+                        $result = call_user_func_array($callback, array_merge([$request, $response], $matches));
+                    } elseif (is_string($callback) && strpos($callback, '@') !== false) {
+                        list($class, $method) = explode('@', $callback);
+                        $instance = new $class();
+                        $result = call_user_func_array([$instance, $method], array_merge([$request, $response], $matches));
+                    }
+                    
+                    break;
+                } else {
+                    // If the URL pattern matches but the method doesn't, it's a method not allowed
+                    $methodNotAllowed = true;
+                    
+                    // Collect allowed methods for this route
+                    $routeMethods = explode('|', $route['method']);
+                    foreach ($routeMethods as $routeMethod) {
+                        if (!in_array($routeMethod, $allowedMethods)) {
+                            $allowedMethods[] = $routeMethod;
+                        }
                     }
                 }
-                
-                // Execute the route callback
-                $callback = $route['callback'];
-                
-                if (is_callable($callback)) {
-                    $result = call_user_func_array($callback, array_merge([$request, $response], $matches));
-                } elseif (is_string($callback) && strpos($callback, '@') !== false) {
-                    list($class, $method) = explode('@', $callback);
-                    $instance = new $class();
-                    $result = call_user_func_array([$instance, $method], array_merge([$request, $response], $matches));
-                }
-                
-                break;
             }
         }
         
-        // If no route was found, return a 404 response
+        // If no route was found, return a 404 or 405 response
         if (!$routeFound) {
-            $response->status(404)->body('404 Not Found');
-            return $response->send();
+            if ($methodNotAllowed && !empty($allowedMethods)) {
+                // Return 405 Method Not Allowed with the allowed methods header
+                return $response->status(405)
+                    ->header('Allow', implode(', ', $allowedMethods))
+                    ->json([
+                        'error' => 'Method Not Allowed',
+                        'message' => 'The ' . $method . ' method is not supported for this route.',
+                        'allowed_methods' => $allowedMethods
+                    ])
+                    ->send();
+            } else {
+                // Return 404 Not Found
+                return $response->status(404)
+                    ->json([
+                        'error' => 'Not Found',
+                        'message' => 'The requested URL was not found on this server.'
+                    ])
+                    ->send();
+            }
         }
         
         // Execute "after" middleware
