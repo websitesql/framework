@@ -422,22 +422,22 @@ class Router {
         if (!$routeFound) {
             if ($methodNotAllowed && !empty($allowedMethods)) {
                 // Return 405 Method Not Allowed with the allowed methods header
-                return $response->status(405)
-                    ->header('Allow', implode(', ', $allowedMethods))
-                    ->json([
-                        'error' => 'Method Not Allowed',
-                        'message' => 'The ' . $method . ' method is not supported for this route.',
-                        'allowed_methods' => $allowedMethods
-                    ])
-                    ->send();
+                return $response->status(405)->header('Allow', implode(', ', $allowedMethods))->json([
+					'code' => 405,
+					'error' => [
+						'type' => 'METHOD_NOT_ALLOWED',
+						'message' => 'The ' . $method . ' method is not supported for this route. Must be one of: ' . implode(', ', $allowedMethods)
+					]
+                ])->send();
             } else {
                 // Return 404 Not Found
-                return $response->status(404)
-                    ->json([
-                        'error' => 'Not Found',
-                        'message' => 'The requested URL was not found on this server.'
-                    ])
-                    ->send();
+                return $response->status(404)->json([
+					'code' => 404,
+					'error' => [
+						'type' => 'NOT_FOUND',
+						'message' => 'The requested URL was not found on this server.'
+					]
+				])->send();
             }
         }
         
