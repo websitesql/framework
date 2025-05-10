@@ -7,6 +7,7 @@ A lightweight, flexible PHP framework with a simple and intuitive API inspired b
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
+- [Custom Instance Registration](#custom-instance-registration)
 - [Routing](#routing)
 - [Middleware](#middleware)
 - [Working with Requests & Responses](#working-with-requests--responses)
@@ -116,6 +117,108 @@ return [
 // In your index.php
 $config = require __DIR__ . '/config/app.php';
 WebsiteSQL::config()->add($config);
+```
+
+## Custom Instance Registration
+
+WebsiteSQL allows you to register custom instances or classes to be accessible through the WebsiteSQL facade:
+
+```php
+// Register a class - it will be instantiated when first called
+WebsiteSQL::register('mail', '\App\Services\Mailer');
+
+// Later use it
+WebsiteSQL::mail()->send($message);
+
+// Register a pre-configured instance
+$logger = new \App\Services\Logger('/path/to/logs');
+WebsiteSQL::register('logger', $logger);
+
+// Later use it
+WebsiteSQL::logger()->debug('Something happened');
+
+// Register a closure
+WebsiteSQL::register('generateId', function() {
+    return uniqid('prefix_');
+});
+
+// Later use it
+$id = WebsiteSQL::generateId();
+```
+
+The registration system handles three different scenarios:
+
+1. **Class Names**: If you register a class name (string), it will be instantiated on first access
+2. **Callables**: If you register a callable, it will be executed with any arguments passed
+3. **Object Instances**: If you register an object instance, it will be returned as is
+
+This allows you to integrate any service or component into your application and access it through the central WebsiteSQL facade.
+
+### Complete Example: Implementing a Simple API Service
+
+Here's a complete example showing how to create and register a simple API service:
+
+```php
+<?php
+// app/Services/WeatherService.php
+namespace App\Services;
+
+class WeatherService {
+    private $apiKey;
+    private $baseUrl = 'https://api.weather.example.com';
+    
+    public function __construct($apiKey = null) {
+        $this->apiKey = $apiKey ?? WebsiteSQL::config()->get('services.weather.key');
+    }
+    
+    public function getCurrentWeather($city) {
+        // In a real application, you would make an API call here
+        $url = "{$this->baseUrl}/current?city={$city}&key={$this->apiKey}";
+        
+        // Simulate API call
+        $response = $this->makeApiCall($url);
+        
+        return $response;
+    }
+    
+    public function getForecast($city, $days = 3) {
+        $url = "{$this->baseUrl}/forecast?city={$city}&days={$days}&key={$this->apiKey}";
+        
+        // Simulate API call
+        $response = $this->makeApiCall($url);
+        
+        return $response;
+    }
+    
+    private function makeApiCall($url) {
+        // In a real app, use curl or Guzzle to make the API call
+        // This is just a simulation
+        return [
+            'success' => true,
+            'data' => [
+                'temperature' => rand(0, 35),
+                'conditions' => ['Sunny', 'Cloudy', 'Rainy', 'Snowy'][rand(0, 3)],
+                'humidity' => rand(30, 90)
+            ]
+        ];
+    }
+}
+
+// Register the service in your bootstrap file or where appropriate
+WebsiteSQL::register('weather', '\App\Services\WeatherService');
+
+// Now use it in your controllers or anywhere in your application
+WebsiteSQL::router()->get('/weather/:city', function($request, $response, $city) {
+    $weatherData = WebsiteSQL::weather()->getCurrentWeather($city);
+    
+    return $response->json($weatherData);
+});
+
+WebsiteSQL::router()->get('/forecast/:city/:days?', function($request, $response, $city, $days = 3) {
+    $forecastData = WebsiteSQL::weather()->getForecast($city, $days);
+    
+    return $response->json($forecastData);
+});
 ```
 
 ## Routing
@@ -242,6 +345,63 @@ WebsiteSQL::router()->before(function($request, $response) {
 
 // Using a class for middleware
 WebsiteSQL::router()->before('App\\Middleware\\AuthMiddleware@handle');
+```
+
+### CORS Middleware
+
+Here's an example of implementing CORS (Cross-Origin Resource Sharing) middleware to handle OPTIONS requests and add necessary headers:
+
+```php
+// Define CORS middleware class
+class CorsMiddleware {
+    public function handle($request, $response) {
+        // Allow requests from any origin
+        $response->header('Access-Control-Allow-Origin', '*');
+        $response->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        $response->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+        
+        // Handle preflight OPTIONS requests
+        if ($request->method() === 'OPTIONS') {
+            return $response->status(200)->send();
+        }
+        
+        // Continue processing the request
+        return null;
+    }
+}
+
+// Register the middleware class
+WebsiteSQL::register('cors', 'CorsMiddleware');
+
+// Apply CORS middleware to all routes
+WebsiteSQL::router()->before(function($request, $response) {
+    return WebsiteSQL::cors()->handle($request, $response);
+});
+
+// Or apply to specific routes or groups
+WebsiteSQL::router()->group('/api', function($router) {
+    $router->get('/users', function($request, $response) {
+        return $response->json(['users' => ['John', 'Jane']]);
+    })->middleware('cors');
+});
+
+// Alternative implementation using a closure
+WebsiteSQL::router()->before(function($request, $response) {
+    // Add CORS headers to all responses
+    $response->header('Access-Control-Allow-Origin', '*');
+    $response->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    $response->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
+    // Handle preflight OPTIONS requests
+    if ($request->method() === 'OPTIONS') {
+        return $response->status(200)->send();
+    }
+});
+
+// Handle OPTIONS requests globally
+WebsiteSQL::router()->options('*', function($request, $response) {
+    return $response->status(200)->send();
+});
 ```
 
 ### Applying Middleware to Specific Routes

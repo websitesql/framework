@@ -12,6 +12,14 @@ class WebsiteSQL {
     private static $instances = [];
     
     /**
+     * Custom registered instances or classes
+     *
+     * @var array<string, object|string>
+     * @access private
+     */
+    private static $registry = [];
+    
+    /**
      * Get the Config instance
      * 
      * @return \WebsiteSQL\Config\Config
@@ -73,6 +81,47 @@ class WebsiteSQL {
     public static function start() {
         // Initialize the router and dispatch the request
         self::router()->dispatch();
+    }
+    
+    /**
+     * Register a custom instance or class
+     * 
+     * @param string $name The name to register the instance or class under
+     * @param object|string $instance The instance or class name to register
+     * @return void
+     */
+    public static function register($name, $instance) {
+        self::$registry[$name] = $instance;
+    }
+    
+    /**
+     * Handle calls to undefined static methods
+     * 
+     * @param string $name Method name
+     * @param array $arguments Method arguments
+     * @return mixed
+     * @throws \Exception If the method doesn't exist
+     */
+    public static function __callStatic($name, $arguments) {
+        if (isset(self::$registry[$name])) {
+            $instance = self::$registry[$name];
+            
+            // If it's a class name, instantiate it
+            if (is_string($instance) && class_exists($instance)) {
+                self::$registry[$name] = new $instance(...$arguments);
+                return self::$registry[$name];
+            }
+            
+            // If it's a callable, call it with the arguments
+            if (is_callable($instance)) {
+                return call_user_func_array($instance, $arguments);
+            }
+            
+            // Otherwise, return the instance
+            return $instance;
+        }
+        
+        throw new \Exception("Method {$name} does not exist");
     }
     
     /**
