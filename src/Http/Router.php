@@ -2,78 +2,450 @@
 
 namespace WebsiteSQL\Http;
 
-use WebsiteSQL\Http\Message\ResponseInterface;
-use WebsiteSQL\Http\Message\ServerRequestInterface;
 use WebsiteSQL\WebsiteSQL;
 
 class Router {
-    private $routes = [];
-    private $namedRoutes = [];
+    /**
+     * Routes collection
+     *
+     * @var array
+     */
+    protected $routes = [];
     
-    public function add($method, $path, $callback) {
-        $route = new Route($method, $path, $callback);
+    /**
+     * Parameter patterns
+     *
+     * @var array
+     */
+    protected $patterns = [];
+    
+    /**
+     * Pre-route middleware
+     *
+     * @var array
+     */
+    protected $beforeMiddleware = [];
+    
+    /**
+     * After-route middleware
+     *
+     * @var array
+     */
+    protected $afterMiddleware = [];
+    
+    /**
+     * Named routes
+     *
+     * @var array
+     */
+    protected $namedRoutes = [];
+    
+    /**
+     * Add a route
+     *
+     * @param string $method HTTP method
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function map($method, $pattern, $callback) {
+        $route = [
+            'pattern' => $pattern,
+            'callback' => $callback,
+            'method' => strtoupper($method),
+            'middleware' => []
+        ];
+        
         $this->routes[] = $route;
-        return $route;
+        $routeIndex = count($this->routes) - 1;
+        
+        return new RouteDecorator($this, $routeIndex);
     }
     
-    public function addNamed($name, $route) {
-        $this->namedRoutes[$name] = $route;
+    /**
+     * Add a GET route
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function get($pattern, $callback) {
+        return $this->map('GET', $pattern, $callback);
     }
     
-    public function dispatch(ServerRequestInterface $request = null): ResponseInterface {
-        if ($request === null) {
-            $request = WebsiteSQL::http()->createServerRequestFromGlobals();
+    /**
+     * Add a POST route
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function post($pattern, $callback) {
+        return $this->map('POST', $pattern, $callback);
+    }
+    
+    /**
+     * Add a PUT route
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function put($pattern, $callback) {
+        return $this->map('PUT', $pattern, $callback);
+    }
+    
+    /**
+     * Add a DELETE route
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function delete($pattern, $callback) {
+        return $this->map('DELETE', $pattern, $callback);
+    }
+    
+    /**
+     * Add a PATCH route
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function patch($pattern, $callback) {
+        return $this->map('PATCH', $pattern, $callback);
+    }
+    
+    /**
+     * Add an OPTIONS route
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function options($pattern, $callback) {
+        return $this->map('OPTIONS', $pattern, $callback);
+    }
+    
+    /**
+     * Add a route for any HTTP method
+     *
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function any($pattern, $callback) {
+        return $this->map('GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD', $pattern, $callback);
+    }
+    
+    /**
+     * Add a route that responds to multiple HTTP methods
+     *
+     * @param array $methods HTTP methods
+     * @param string $pattern URL pattern
+     * @param callable|string $callback Route handler
+     * @return \WebsiteSQL\Http\RouteDecorator
+     */
+    public function methods(array $methods, $pattern, $callback) {
+        return $this->map(implode('|', array_map('strtoupper', $methods)), $pattern, $callback);
+    }
+    
+    /**
+     * Add a parameter pattern
+     *
+     * @param string $name Parameter name
+     * @param string $pattern Regex pattern
+     * @return $this
+     */
+    public function pattern($name, $pattern) {
+        $this->patterns[$name] = $pattern;
+        return $this;
+    }
+    
+    /**
+     * Add global "before" middleware
+     *
+     * @param callable|string $middleware Middleware callback
+     * @return $this
+     */
+    public function before($middleware) {
+        $this->beforeMiddleware[] = $middleware;
+        return $this;
+    }
+    
+    /**
+     * Add global "after" middleware
+     *
+     * @param callable|string $middleware Middleware callback
+     * @return $this
+     */
+    public function after($middleware) {
+        $this->afterMiddleware[] = $middleware;
+        return $this;
+    }
+    
+    /**
+     * Set a response as JSON
+     *
+     * @param mixed $data Data to encode as JSON
+     * @return Response
+     */
+    public function json($data) {
+        $response = new Response();
+        return $response->json($data);
+    }
+    
+    /**
+     * Render a view
+     *
+     * @param string $view Path to the view file
+     * @param array $data Data to pass to the view
+     * @return Response
+     */
+    public function render($view, $data = []) {
+        $response = new Response();
+        return $response->render($view, $data);
+    }
+    
+    /**
+     * Redirect to URL
+     *
+     * @param string $url URL to redirect to
+     * @param int $code HTTP status code
+     * @return Response
+     */
+    public function redirect($url, $code = 302) {
+        $response = new Response();
+        return $response->redirect($url, $code);
+    }
+    
+    /**
+     * Name a route
+     *
+     * @param int $routeIndex Route index in the routes array
+     * @param string $name Route name
+     * @return void
+     */
+    public function nameRoute($routeIndex, $name) {
+        $this->namedRoutes[$name] = $routeIndex;
+    }
+    
+    /**
+     * Add middleware to a specific route
+     *
+     * @param int $routeIndex Route index
+     * @param callable|string $middleware Middleware callback
+     * @return void
+     */
+    public function addRouteMiddleware($routeIndex, $middleware) {
+        $this->routes[$routeIndex]['middleware'][] = $middleware;
+    }
+    
+    /**
+     * Generate a URL for a named route
+     *
+     * @param string $name Route name
+     * @param array $params Route parameters
+     * @return string Generated URL
+     * @throws \Exception If route not found
+     */
+    public function urlFor($name, array $params = []) {
+        if (!isset($this->namedRoutes[$name])) {
+            throw new \Exception("Named route not found: $name");
         }
         
-        $method = $request->getMethod();
-        $uri = $request->getRequestTarget();
+        $route = $this->routes[$this->namedRoutes[$name]];
+        $url = $route['pattern'];
         
-        try {
-            foreach ($this->routes as $route) {
-                if ($route->matches($method, $uri)) {
-                    // The route is responsible for:
-                    // 1. Extracting URI parameters and adding them to the request
-                    // 2. Running middleware before the controller
-                    // 3. Executing the controller with the request and a fresh response
-                    // 4. Returning the final response
-                    return $route->execute($request, WebsiteSQL::http()->createResponse());
+        // Replace named parameters
+        foreach ($params as $paramName => $paramValue) {
+            $url = str_replace(':' . $paramName, $paramValue, $url);
+        }
+        
+        return $url;
+    }
+    
+    /**
+     * Get all routes
+     * 
+     * @return array
+     */
+    public function getRoutes() {
+        return $this->routes;
+    }
+    
+    /**
+     * Get a named route
+     * 
+     * @param string $name Route name
+     * @return array|null Route configuration or null if not found
+     */
+    public function getNamedRoute($name) {
+        if (!isset($this->namedRoutes[$name])) {
+            return null;
+        }
+        
+        return $this->routes[$this->namedRoutes[$name]];
+    }
+    
+    /**
+     * Group routes with shared attributes
+     * 
+     * @param string $prefix URL prefix for all routes in the group
+     * @param callable $callback Function to define routes in the group
+     * @return void
+     */
+    public function group($prefix, callable $callback) {
+        // Store current state to restore after group processing
+        $currentRoutes = $this->routes;
+        $currentNamedRoutes = $this->namedRoutes;
+        
+        // Clear routes to add group routes
+        $this->routes = [];
+        $this->namedRoutes = [];
+        
+        // Call the group definition function
+        $callback($this);
+        
+        // Apply prefix to all routes defined in the group
+        $groupRoutes = $this->routes;
+        $groupNamedRoutes = $this->namedRoutes;
+        
+        $this->routes = $currentRoutes;
+        $this->namedRoutes = $currentNamedRoutes;
+        
+        // Add prefixed routes to the main routes collection
+        foreach ($groupRoutes as $route) {
+            $route['pattern'] = $prefix . '/' . ltrim($route['pattern'], '/');
+            $this->routes[] = $route;
+            
+            // Update named routes
+            $routeIndex = count($this->routes) - 1;
+            foreach ($groupNamedRoutes as $name => $index) {
+                if ($index === count($groupRoutes) - 1) {
+                    $this->namedRoutes[$name] = $routeIndex;
                 }
             }
-            
-            // No route found
-            return WebsiteSQL::http()->jsonResponse(
-                [
-                    'error' => [
-                        'message' => 'The requested resource could not be found.',
-                        'type' => 'RESOURCE_NOT_FOUND',
-                        'code' => 404
-                    ]
-                ],
-                404
-            );
-        } catch (\Exception $e) {
-            // Check if the user has specified a debug flag
-            $debug = WebsiteSQL::config()->get('app.debug', false);
-
-            // Handle other exceptions as needed
-            return WebsiteSQL::http()->jsonResponse(
-                [
-                    'error' => [
-                        'message' => $debug ? $e->getMessage() : 'An internal server error occurred.',
-                        'type' => 'INTERNAL_SERVER_ERROR',
-                        'code' => 500
-                    ],
-                ],
-                500
-            );
         }
     }
     
-    public function url($name, $params = []) {
-        if (!isset($this->namedRoutes[$name])) {
-            throw new \Exception("Route with name {$name} not found");
+    /**
+     * Dispatch the router
+     *
+     * @param string|null $method HTTP method (uses current request method if null)
+     * @param string|null $uri Request URI (uses current request URI if null)
+     * @return mixed
+     */
+    public function dispatch($method = null, $uri = null) {
+        $method = $method ?: $_SERVER['REQUEST_METHOD'];
+        
+        if ($uri === null) {
+            $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+            $uri = '/' . trim($requestUri, '/');
         }
         
-        return $this->namedRoutes[$name]->generateUrl($params);
+        // Create request and response objects
+        $request = WebsiteSQL::request();
+        $response = WebsiteSQL::response();
+        
+        // Execute "before" middleware
+        foreach ($this->beforeMiddleware as $middleware) {
+            $middlewareResult = $this->executeMiddleware($middleware, $request, $response);
+            if ($middlewareResult instanceof Response) {
+                return $middlewareResult->send();
+            }
+        }
+        
+        // Match the route
+        $routeFound = false;
+        $result = null;
+        
+        foreach ($this->routes as $route) {
+            if (strpos($route['method'], $method) === false) {
+                continue;
+            }
+            
+            $pattern = $route['pattern'];
+            $params = [];
+            
+            // Apply parameter patterns
+            foreach ($this->patterns as $name => $regex) {
+                $pattern = str_replace(':' . $name, '(' . $regex . ')', $pattern);
+            }
+            
+            // Replace standard parameters with regex
+            $pattern = preg_replace('/:([a-zA-Z0-9_]+)/', '([^/]+)', $pattern);
+            
+            // Check if route matches
+            if (preg_match('#^' . $pattern . '$#', $uri, $matches)) {
+                $routeFound = true;
+                
+                // Extract parameters
+                array_shift($matches); // Remove first match (the full match)
+                
+                // Execute route middleware
+                foreach ($route['middleware'] as $middleware) {
+                    $middlewareResult = $this->executeMiddleware($middleware, $request, $response);
+                    if ($middlewareResult instanceof Response) {
+                        return $middlewareResult->send();
+                    }
+                }
+                
+                // Execute the route callback
+                $callback = $route['callback'];
+                
+                if (is_callable($callback)) {
+                    $result = call_user_func_array($callback, array_merge([$request, $response], $matches));
+                } elseif (is_string($callback) && strpos($callback, '@') !== false) {
+                    list($class, $method) = explode('@', $callback);
+                    $instance = new $class();
+                    $result = call_user_func_array([$instance, $method], array_merge([$request, $response], $matches));
+                }
+                
+                break;
+            }
+        }
+        
+        // If no route was found, return a 404 response
+        if (!$routeFound) {
+            $response->status(404)->body('404 Not Found');
+            return $response->send();
+        }
+        
+        // Execute "after" middleware
+        foreach ($this->afterMiddleware as $middleware) {
+            $middlewareResult = $this->executeMiddleware($middleware, $request, $response);
+            if ($middlewareResult instanceof Response) {
+                return $middlewareResult->send();
+            }
+        }
+        
+        // If the result is already a Response object, send it
+        if ($result instanceof Response) {
+            return $result->send();
+        }
+        
+        // Otherwise, set the body and send
+        return $response->body((string) $result)->send();
+    }
+    
+    /**
+     * Execute middleware
+     *
+     * @param callable|string $middleware
+     * @param Request $request
+     * @param Response $response
+     * @return mixed
+     */
+    protected function executeMiddleware($middleware, $request, $response) {
+        if (is_callable($middleware)) {
+            return call_user_func($middleware, $request, $response);
+        } elseif (is_string($middleware) && strpos($middleware, '@') !== false) {
+            list($class, $method) = explode('@', $middleware);
+            $instance = new $class();
+            return call_user_func([$instance, $method], $request, $response);
+        }
+        return null;
     }
 }

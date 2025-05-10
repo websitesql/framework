@@ -2,7 +2,9 @@
 
 namespace WebsiteSQL;
 
-use WebsiteSQL\Http\Message\ResponseInterface;
+use WebsiteSQL\Http\Router;
+use WebsiteSQL\Http\Request;
+use WebsiteSQL\Http\Response;
 
 class WebsiteSQL {
 	/**
@@ -30,26 +32,8 @@ class WebsiteSQL {
     public static function db() {
         return self::getInstance('\WebsiteSQL\Database\DB');
     }
-    
-    /**
-     * Get the Router instance
-     * 
-     * @return \WebsiteSQL\Http\Router
-     */
-    public static function router() {
-        return self::getInstance('\WebsiteSQL\Http\Router');
-    }
-	
-    /**
-     * Get the HTTP utilities instance
-     * 
-     * @return \WebsiteSQL\Http\Http
-     */
-	public static function http() {
-		return self::getInstance('\WebsiteSQL\Http\Http');
-	}
 
-	/**
+    /**
 	 * Return a new Utilities instance
 	 * 
 	 * @return \WebsiteSQL\Utilities\Utilities
@@ -59,49 +43,40 @@ class WebsiteSQL {
 	}
     
     /**
-     * Get or register middleware
+     * Get the Router instance
      * 
-     * @param string|null $name Middleware name
-     * @param callable|null $callback Middleware callback
-     * @return \WebsiteSQL\Http\MiddlewareManager|\WebsiteSQL\Http\MiddlewareManager
+     * @return \WebsiteSQL\Http\Router
      */
-    public static function middleware($name = null, $callback = null) {
-        $middlewareManager = self::getInstance('\WebsiteSQL\Http\MiddlewareManager');
-        if ($name !== null && $callback !== null) {
-            return $middlewareManager->register($name, $callback);
-        }
-        return $middlewareManager;
+    public static function router() {
+        return self::getInstance('\WebsiteSQL\Http\Router');
     }
     
     /**
-     * Add global middleware that runs on every request
+     * Create a new Request instance from global variables
      * 
-     * @param string|array $middleware Middleware name(s) to run globally
-     * @return \WebsiteSQL\Http\MiddlewareManager
+     * @return \WebsiteSQL\Http\Request
      */
-    public static function useGlobalMiddleware($middleware) {
-        return self::middleware()->addGlobal($middleware);
+    public static function request() {
+        return Request::createFromGlobals();
     }
     
     /**
-     * Add a route to the router
+     * Create a new Response instance
      * 
-     * @param string $method HTTP method
-     * @param string $path Route path
-     * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\Route
+     * @return \WebsiteSQL\Http\Response
      */
-    public static function route($method, $path, $callback) {
-        return self::router()->add($method, $path, $callback);
+    public static function response() {
+        return new Response();
     }
     
     /**
-     * Start the application by dispatching the router
+     * Start the application
      * 
-     * @return ResponseInterface
+     * @return void
      */
     public static function start() {
-        return self::router()->dispatch();
+        // Initialize the router and dispatch the request
+        self::router()->dispatch();
     }
     
     /**

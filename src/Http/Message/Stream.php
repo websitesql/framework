@@ -176,6 +176,11 @@ class Stream implements StreamInterface
             throw new \RuntimeException('Stream is detached');
         }
         
+        // If the stream is seekable, rewind to the beginning first
+        if ($this->isSeekable()) {
+            $this->rewind();
+        }
+        
         $contents = stream_get_contents($this->stream);
         if ($contents === false) {
             throw new \RuntimeException('Unable to read stream contents');
