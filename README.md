@@ -13,6 +13,7 @@ A lightweight, flexible PHP framework with a simple and intuitive API inspired b
 - [Working with Requests & Responses](#working-with-requests--responses)
 - [Database Operations](#database-operations)
 - [Migrations](#migrations)
+- [Cron Management](#cron-management)
 - [Project Structure](#project-structure)
 - [License](#license)
 
@@ -812,6 +813,152 @@ WebsiteSQL::db()->migration('Version00001', function($db) {
     $db->drop('users');
 });
 ```
+
+## Cron Management
+
+WebsiteSQL provides a robust cron job management system that allows you to schedule tasks using standard cron expressions.
+
+### Scheduling Cron Jobs
+
+```php
+<?php
+// Schedule a job to run every minute
+WebsiteSQL::cron()->schedule('* * * * *', function() {
+    // This runs every minute
+    echo "Running every minute\n";
+});
+
+// Schedule a job to run hourly at the top of the hour
+WebsiteSQL::cron()->schedule('0 * * * *', function() {
+    // This runs at 1:00, 2:00, 3:00, etc.
+    echo "Running hourly\n";
+});
+
+// Schedule a job to run at 2:30am daily
+WebsiteSQL::cron()->schedule('30 2 * * *', function() {
+    // This runs at 2:30am
+    echo "Running at 2:30am\n";
+});
+
+// Schedule a job to run on weekdays at noon
+WebsiteSQL::cron()->schedule('0 12 * * 1-5', function() {
+    // This runs at noon Monday-Friday
+    echo "Running at noon on weekdays\n";
+});
+```
+
+### Named Jobs
+
+You can assign names to jobs, which allows you to reference them later:
+
+```php
+// Schedule a named job
+WebsiteSQL::cron()->schedule('0 0 * * *', function() {
+    // Daily backup at midnight
+    // ...
+}, 'daily-backup');
+
+// Remove a scheduled job by name
+WebsiteSQL::cron()->removeJob('daily-backup');
+```
+
+### Controller Methods as Jobs
+
+You can use controller methods as job callbacks:
+
+```php
+// Schedule a controller method to run every 5 minutes
+WebsiteSQL::cron()->schedule('*/5 * * * *', 'App\\Jobs\\ReportGenerator@generateDailyReport');
+```
+
+### Using the Built-in Runner
+
+WebsiteSQL includes a built-in cron runner script that can be executed by your system's cron scheduler. To use it, set up a cron entry to run every minute:
+
+```
+# Linux/Unix crontab entry
+* * * * * php /path/to/websitesql/framework/bin/cron-runner.php >> /path/to/cron.log 2>&1
+```
+
+For Windows, use Task Scheduler to run this PHP script every minute.
+
+### Implementing a Custom Runner
+
+If you prefer to implement your own cron runner, you can easily do so. Here's a simple example of a custom runner:
+
+```php
+<?php
+// Custom cron runner - mycron.php
+
+// Require autoloader
+require __DIR__ . '/vendor/autoload.php';
+
+// Include your application bootstrap if needed
+require __DIR__ . '/bootstrap/app.php';
+
+// Log the execution
+echo "[" . date('Y-m-d H:i:s') . "] Cron runner started\n";
+
+// Execute due cron jobs
+$results = \WebsiteSQL\WebsiteSQL::cron()->run();
+
+// Log the results
+if (!empty($results)) {
+    echo "Executed " . count($results) . " jobs:\n";
+    foreach ($results as $name => $result) {
+        echo "- Job '{$name}' executed\n";
+    }
+} else {
+    echo "No jobs were due for execution.\n";
+}
+```
+
+Then schedule this custom runner to run every minute using your system's cron or task scheduler:
+
+```
+# Linux/Unix crontab entry
+* * * * * php /path/to/your-app/mycron.php >> /path/to/cron.log 2>&1
+```
+
+### Testing Scheduled Jobs
+
+You can test your scheduled jobs without waiting for the actual time by simulating timestamps:
+
+```php
+// Schedule a job
+WebsiteSQL::cron()->schedule('0 12 * * *', function() {
+    return "Job executed!";
+}, 'noon-job');
+
+// Test the job with a specific timestamp
+// This simulates the cron running at noon on May 11, 2023
+$timestamp = strtotime('2023-05-11 12:00:00');
+$results = WebsiteSQL::cron()->run($timestamp);
+
+// $results will contain the return value of executed job(s)
+print_r($results);
+```
+
+### Cron Expression Format
+
+WebsiteSQL uses the standard cron expression format with five fields:
+
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of the month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │
+* * * * *
+```
+
+Supported expressions include:
+- `*` - any value
+- `1,3,5` - list of values
+- `1-5` - range of values
+- `*/5` - step values (every 5 minutes)
+- `0-30/5` - step values within a range (every 5 minutes for the first half hour)
 
 ## Project Structure
 

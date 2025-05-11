@@ -65,6 +65,15 @@ class WebsiteSQL {
     }
     
     /**
+     * Get the Cron manager instance
+     * 
+     * @return \WebsiteSQL\Cron\CronManager
+     */
+    public static function cron() {
+        return self::getInstance('\WebsiteSQL\Cron\CronManager');
+    }
+    
+    /**
      * Create a new Request instance from global variables
      * 
      * @return \WebsiteSQL\Router\Request
