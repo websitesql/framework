@@ -56,6 +56,15 @@ class WebsiteSQL {
     }
     
     /**
+     * Get the Middleware manager instance
+     * 
+     * @return \WebsiteSQL\Middleware\MiddlewareManager
+     */
+    public static function middleware() {
+        return self::getInstance('\WebsiteSQL\Middleware\MiddlewareManager');
+    }
+    
+    /**
      * Create a new Request instance from global variables
      * 
      * @return \WebsiteSQL\Router\Request

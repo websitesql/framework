@@ -32,6 +32,13 @@ class Request {
     protected $files = [];
     
     /**
+     * Process function for middleware
+     *
+     * @var callable|null
+     */
+    protected $process = null;
+    
+    /**
      * Create a new Request instance from global variables
      *
      * @return \WebsiteSQL\Http\Request
@@ -79,6 +86,29 @@ class Request {
         }
         
         return $headers;
+    }
+    
+    /**
+     * Set the process function for middleware
+     *
+     * @param callable $process
+     * @return $this
+     */
+    public function setProcess(callable $process) {
+        $this->process = $process;
+        return $this;
+    }
+    
+    /**
+     * Process the next middleware or route
+     *
+     * @return mixed
+     */
+    public function process() {
+        if (is_callable($this->process)) {
+            return call_user_func($this->process, $this, new Response());
+        }
+        return null;
     }
 
     /**

@@ -27,7 +27,7 @@ class RouteDecorator {
     /**
      * Add middleware to the route
      *
-     * @param callable|string|array $middleware
+     * @param callable|string|array $middleware Middleware callable, name or array of middleware
      * @return $this
      */
     public function middleware($middleware) {

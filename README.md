@@ -332,19 +332,101 @@ $url = WebsiteSQL::router()->urlFor('profile', ['username' => 'john']);
 
 ## Middleware
 
-Middleware provides a convenient way to filter HTTP requests:
+Middleware provides a convenient mechanism for filtering HTTP requests and for processing request/response cycles. With WebsiteSQL, you can register middleware by name and then use it throughout your application.
+
+### Registering Named Middleware
 
 ```php
-// Define middleware with a closure
-WebsiteSQL::router()->before(function($request, $response) {
+// Register a middleware with a name
+WebsiteSQL::middleware()->register('auth', function($request, $response) {
+    // Check if user is authenticated
     if (!isset($_SESSION['user_id'])) {
-        // Redirect to login page
         return $response->redirect('/login');
     }
+    
+    // Continue the request cycle
+    return $request->process();
 });
 
-// Using a class for middleware
-WebsiteSQL::router()->before('App\\Middleware\\AuthMiddleware@handle');
+// Register a middleware class
+WebsiteSQL::middleware()->register('log', 'App\\Middleware\\LogMiddleware');
+```
+
+### Using Middleware with Routes
+
+```php
+// Apply named middleware to a route
+WebsiteSQL::router()->get('/dashboard', function($request, $response) {
+    return $response->json([
+        'message' => 'Welcome to the dashboard!'
+    ]);
+})->middleware('auth');
+
+// Apply multiple middleware to a route
+WebsiteSQL::router()->get('/admin/settings', function($request, $response) {
+    return $response->html('<h1>Admin Settings</h1>');
+})->middleware(['auth', 'admin']);
+```
+
+### Middleware with Process Control
+
+One of the powerful features of the WebsiteSQL middleware system is the ability to process the entire request/response cycle and modify the response:
+
+```php
+WebsiteSQL::middleware()->register('api-logger', function($request, $response) {
+    // Log the request
+    $startTime = microtime(true);
+    
+    // Process the route and downstream middleware
+    $response = $request->process();
+    
+    // Log the response time
+    $endTime = microtime(true);
+    $executionTime = $endTime - $startTime;
+    
+    // Add execution time to response header
+    $response->header('X-Execution-Time', $executionTime . 'ms');
+    
+    return $response;
+});
+```
+
+### Early Response from Middleware
+
+Middleware can also intercept and short-circuit the request processing:
+
+```php
+WebsiteSQL::middleware()->register('rate-limiter', function($request, $response) {
+    $ip = $request->ip();
+    
+    if (isRateLimitExceeded($ip)) {
+        // Return response directly, don't process the route
+        return $response->status(429)->json([
+            'error' => 'Too many requests',
+            'retry_after' => 60
+        ]);
+    }
+    
+    // Continue processing the request
+    return $request->process();
+});
+```
+
+### Global Middleware
+
+```php
+// Apply middleware to all routes
+WebsiteSQL::router()->before(function($request, $response) {
+    // Execute before each request
+    $response->header('X-Frame-Options', 'DENY');
+});
+
+// Execute after route processing
+WebsiteSQL::router()->after(function($request, $response) {
+    // Execute after each request
+    $response->header('X-Powered-By', 'WebsiteSQL');
+    return $response;
+});
 ```
 
 ### CORS Middleware
@@ -366,67 +448,45 @@ class CorsMiddleware {
         }
         
         // Continue processing the request
-        return null;
+        return $request->process();
     }
 }
 
 // Register the middleware class
-WebsiteSQL::register('cors', 'CorsMiddleware');
+WebsiteSQL::middleware()->register('cors', 'CorsMiddleware');
 
-// Apply CORS middleware to all routes
-WebsiteSQL::router()->before(function($request, $response) {
-    return WebsiteSQL::cors()->handle($request, $response);
-});
-
-// Or apply to specific routes or groups
+// Apply CORS middleware to all API routes
 WebsiteSQL::router()->group('/api', function($router) {
     $router->get('/users', function($request, $response) {
         return $response->json(['users' => ['John', 'Jane']]);
     })->middleware('cors');
 });
+```
 
-// Alternative implementation using a closure
-WebsiteSQL::router()->before(function($request, $response) {
-    // Add CORS headers to all responses
-    $response->header('Access-Control-Allow-Origin', '*');
-    $response->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    $response->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    
-    // Handle preflight OPTIONS requests
-    if ($request->method() === 'OPTIONS') {
-        return $response->status(200)->send();
+### Middleware Class Implementation
+
+For more complex middleware, using classes provides better organization:
+
+```php
+<?php
+namespace App\Middleware;
+
+use WebsiteSQL\Router\Request;
+use WebsiteSQL\Router\Response;
+
+class AuthMiddleware {
+    public function __invoke(Request $request, Response $response) {
+        if (!isset($_SESSION['user_id'])) {
+            return $response->redirect('/login');
+        }
+        
+        // Continue processing
+        return $request->process();
     }
-});
+}
 
-// Handle OPTIONS requests globally
-WebsiteSQL::router()->options('*', function($request, $response) {
-    return $response->status(200)->send();
-});
-```
-
-### Applying Middleware to Specific Routes
-
-```php
-// Single middleware
-WebsiteSQL::router()->get('/dashboard', function($request, $response) {
-    return $response->html('Dashboard');
-})->middleware('auth');
-
-// Multiple middleware
-WebsiteSQL::router()->get('/admin/settings', function($request, $response) {
-    return $response->html('Admin Settings');
-})->middleware(['auth', 'admin']);
-```
-
-### After Middleware
-
-```php
-// Executed after the route handler
-WebsiteSQL::router()->after(function($request, $response) {
-    // Log the request
-    logRequest($request->method(), $request->path());
-    return $response;
-});
+// Register the middleware
+WebsiteSQL::middleware()->register('auth', new \App\Middleware\AuthMiddleware());
 ```
 
 ## Working with Requests & Responses

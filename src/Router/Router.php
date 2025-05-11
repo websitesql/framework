@@ -46,7 +46,7 @@ class Router {
      * @param string $method HTTP method
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function map($method, $pattern, $callback) {
         $route = [
@@ -67,7 +67,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function get($pattern, $callback) {
         return $this->map('GET', $pattern, $callback);
@@ -78,7 +78,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function post($pattern, $callback) {
         return $this->map('POST', $pattern, $callback);
@@ -89,7 +89,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function put($pattern, $callback) {
         return $this->map('PUT', $pattern, $callback);
@@ -100,7 +100,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function delete($pattern, $callback) {
         return $this->map('DELETE', $pattern, $callback);
@@ -111,7 +111,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function patch($pattern, $callback) {
         return $this->map('PATCH', $pattern, $callback);
@@ -122,7 +122,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function options($pattern, $callback) {
         return $this->map('OPTIONS', $pattern, $callback);
@@ -133,7 +133,7 @@ class Router {
      *
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function any($pattern, $callback) {
         return $this->map('GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD', $pattern, $callback);
@@ -145,7 +145,7 @@ class Router {
      * @param array $methods HTTP methods
      * @param string $pattern URL pattern
      * @param callable|string $callback Route handler
-     * @return \WebsiteSQL\Http\RouteDecorator
+     * @return \WebsiteSQL\Router\RouteDecorator
      */
     public function methods(array $methods, $pattern, $callback) {
         return $this->map(implode('|', array_map('strtoupper', $methods)), $pattern, $callback);
@@ -235,7 +235,7 @@ class Router {
      * Add middleware to a specific route
      *
      * @param int $routeIndex Route index
-     * @param callable|string $middleware Middleware callback
+     * @param callable|string $middleware Middleware callback or name
      * @return void
      */
     public function addRouteMiddleware($routeIndex, $middleware) {
@@ -383,23 +383,21 @@ class Router {
                     // Extract parameters
                     array_shift($matches); // Remove first match (the full match)
                     
-                    // Execute route middleware
-                    foreach ($route['middleware'] as $middleware) {
-                        $middlewareResult = $this->executeMiddleware($middleware, $request, $response);
-                        if ($middlewareResult instanceof Response) {
-                            return $middlewareResult->send();
-                        }
-                    }
+                    // Process route with middleware
+                    $routeMiddleware = $this->processRouteMiddleware($route['middleware']);
+                    $routeHandler = $this->createRouteHandler($route['callback']);
                     
-                    // Execute the route callback
-                    $callback = $route['callback'];
-                    
-                    if (is_callable($callback)) {
-                        $result = call_user_func_array($callback, array_merge([$request, $response], $matches));
-                    } elseif (is_string($callback) && strpos($callback, '@') !== false) {
-                        list($class, $method) = explode('@', $callback);
-                        $instance = new $class();
-                        $result = call_user_func_array([$instance, $method], array_merge([$request, $response], $matches));
+                    if (!empty($routeMiddleware)) {
+                        $result = WebsiteSQL::middleware()->process(
+                            $routeMiddleware, 
+                            $routeHandler, 
+                            $request, 
+                            $response, 
+                            $matches
+                        );
+                    } else {
+                        // Execute the route callback directly if no middleware
+                        $result = call_user_func_array($routeHandler, array_merge([$request, $response], $matches));
                     }
                     
                     break;
@@ -423,21 +421,21 @@ class Router {
             if ($methodNotAllowed && !empty($allowedMethods)) {
                 // Return 405 Method Not Allowed with the allowed methods header
                 return $response->status(405)->header('Allow', implode(', ', $allowedMethods))->json([
-					'code' => 405,
-					'error' => [
-						'type' => 'METHOD_NOT_ALLOWED',
-						'message' => 'The ' . $method . ' method is not supported for this route. Must be one of: ' . implode(', ', $allowedMethods)
-					]
+                    'code' => 405,
+                    'error' => [
+                        'type' => 'METHOD_NOT_ALLOWED',
+                        'message' => 'The ' . $method . ' method is not supported for this route. Must be one of: ' . implode(', ', $allowedMethods)
+                    ]
                 ])->send();
             } else {
                 // Return 404 Not Found
                 return $response->status(404)->json([
-					'code' => 404,
-					'error' => [
-						'type' => 'NOT_FOUND',
-						'message' => 'The requested URL was not found on this server.'
-					]
-				])->send();
+                    'code' => 404,
+                    'error' => [
+                        'type' => 'NOT_FOUND',
+                        'message' => 'The requested URL was not found on this server.'
+                    ]
+                ])->send();
             }
         }
         
@@ -475,5 +473,49 @@ class Router {
             return call_user_func([$instance, $method], $request, $response);
         }
         return null;
+    }
+    
+    /**
+     * Process route middleware and convert to array of middleware names
+     *
+     * @param array $middleware Array of middleware handlers or names
+     * @return array Array of middleware names
+     */
+    protected function processRouteMiddleware(array $middleware) {
+        $result = [];
+        
+        foreach ($middleware as $m) {
+            if (is_string($m) && !strpos($m, '@')) {
+                // If it's just a string without @, it's a middleware name
+                $result[] = $m;
+            } else {
+                // For callables or class@method format, register it with a generated name
+                $name = 'middleware_' . md5(serialize($m));
+                WebsiteSQL::middleware()->register($name, $m);
+                $result[] = $name;
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Create a callable route handler from a callback or controller@method string
+     *
+     * @param callable|string $callback
+     * @return callable
+     */
+    protected function createRouteHandler($callback) {
+        if (is_callable($callback)) {
+            return $callback;
+        } elseif (is_string($callback) && strpos($callback, '@') !== false) {
+            return function($request, $response, ...$params) use ($callback) {
+                list($class, $method) = explode('@', $callback);
+                $instance = new $class();
+                return call_user_func_array([$instance, $method], array_merge([$request, $response], $params));
+            };
+        }
+        
+        throw new \Exception("Invalid route callback");
     }
 }
